@@ -1,0 +1,6 @@
+name: flask-golf
+services:
+- name: web
+  github:
+    repo: cjt243/flask-golf
+    branch: main
