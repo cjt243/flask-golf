@@ -1,4 +1,5 @@
 asn1crypto==1.5.1
+gunicorn
 blinker==1.8.2
 certifi==2024.2.2
 cffi==1.16.0
