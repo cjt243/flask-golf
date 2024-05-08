@@ -1,20 +1,34 @@
 from flask import Flask
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import udf
+import os
 from config import *
 
 app = Flask(__name__) 
 
+
+
 def create_snowpark_session():
-    connection_parameters = {
-        "account": SNOWFLAKE_ACCOUNT,
-        "user": SNOWFLAKE_USER,
-        "password": SNOWFLAKE_PASSWORD,
-        "role": SNOWFLAKE_ROLE,
-        "warehouse": SNOWFLAKE_WAREHOUSE,
-        "database": SNOWFLAKE_DATABASE,
-        "schema": SNOWFLAKE_SCHEMA
-    }
+    if os.getenv('SNOWFLAKE_ACCOUNT') == None:
+        connection_parameters = {
+            "account": SNOWFLAKE_ACCOUNT,
+            "user": SNOWFLAKE_USER,
+            "password": SNOWFLAKE_PASSWORD,
+            "role": SNOWFLAKE_ROLE,
+            "warehouse": SNOWFLAKE_WAREHOUSE,
+            "database": SNOWFLAKE_DATABASE,
+            "schema": SNOWFLAKE_SCHEMA
+        }
+    else:
+         connection_parameters = {
+            "account": os.getenv('SNOWFLAKE_ACCOUNT'),
+            "user": os.getenv(SNOWFLAKE_USER),
+            "password": os.getenv(SNOWFLAKE_PASSWORD),
+            "role": os.getenv(SNOWFLAKE_ROLE),
+            "warehouse": os.getenv(SNOWFLAKE_WAREHOUSE),
+            "database": os.getenv(SNOWFLAKE_DATABASE),
+            "schema": os.getenv(SNOWFLAKE_SCHEMA)
+        }
     session = Session.builder.configs(connection_parameters).create()
     return session
 
