@@ -6,8 +6,6 @@ from config import *
 
 app = Flask(__name__) 
 
-
-
 def create_snowpark_session():
     if os.getenv('SNOWFLAKE_ACCOUNT') == None:
         connection_parameters = {
