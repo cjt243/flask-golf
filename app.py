@@ -2,7 +2,10 @@ from flask import Flask
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import udf
 import os
-from config import *
+try:
+    from config import *
+except ModuleNotFoundError:
+    print('Deploying in prod environment.')
 
 app = Flask(__name__) 
 
