@@ -41,7 +41,7 @@ def leaderboard():
     tournament_name = session.sql(tournament_query).collect()[0][0]  # Assuming there is always one active tournament
 
     # SQL query to select all columns from the leaderboard view
-    df = session.sql("SELECT * FROM GOLF_LEAGUE.ANALYTICS.LEADERBOARD_DISPLAY_VW ORDER BY RANK")
+    df = session.sql("SELECT * FROM GOLF_LEAGUE.ANALYTICS.LEADERBOARD_DISPLAY_DETAILED_VW ORDER BY RANK")
     results = df.collect()
     session.close()
 
