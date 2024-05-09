@@ -12,7 +12,7 @@
             font-size: 2.25em;
         }
         body {
-            background-color: #343a40;
+            background-color: #202121;
             color: #f8f9fa;
             font-family: 'Archivo';
             font-size: 12px;
@@ -80,39 +80,50 @@
         .chip.highlight {
             background-color: #28a745;
         }
+
+        .highlight-header {
+            background-color: #28a745; /* Change this to the color you want */
+        }
     </style>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            document.querySelectorAll('.leaderboard-header').forEach(header => {
-                header.addEventListener('click', function () {
-                    const content = this.nextElementSibling;
-                    if (content.style.maxHeight && content.style.maxHeight !== '0px') {
-                        content.style.maxHeight = '0';
-                    } else {
-                        content.style.maxHeight = content.scrollHeight + 'px';
-                    }
-                    this.querySelector('.leaderboard-icon').classList.toggle('fa-chevron-up');
-                    this.querySelector('.leaderboard-icon').classList.toggle('fa-chevron-down');
-                });
-            });
-            document.querySelectorAll('.chip').forEach(chip => {
-                chip.addEventListener('click', function (event) {
-                    event.stopPropagation(); // Prevent the leaderboard from toggling
-                    const isSelected = this.classList.contains('highlight');
-                    const chipValue = this.textContent.trim();
-                    document.querySelectorAll('.chip').forEach(c => {
-                        c.classList.remove('highlight');
-                    });
-                    if (!isSelected) {
-                        document.querySelectorAll('.chip').forEach(c => {
-                            if (c.textContent.trim() === chipValue) {
-                                c.classList.add('highlight');
-                            }
-                        });
-                    }
-                });
-            });
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.leaderboard-header').forEach(header => {
+        header.addEventListener('click', function () {
+            const content = this.nextElementSibling;
+            if (content.style.maxHeight && content.style.maxHeight !== '0px') {
+                content.style.maxHeight = '0';
+            } else {
+                content.style.maxHeight = content.scrollHeight + 'px';
+            }
+            this.querySelector('.leaderboard-icon').classList.toggle('fa-chevron-up');
+            this.querySelector('.leaderboard-icon').classList.toggle('fa-chevron-down');
         });
+    });
+    document.querySelectorAll('.chip').forEach(chip => {
+        chip.addEventListener('click', function (event) {
+            event.stopPropagation(); // Prevent the leaderboard from toggling
+            const isSelected = this.classList.contains('highlight');
+            const chipValue = this.textContent.trim();
+            document.querySelectorAll('.chip').forEach(c => {
+                c.classList.remove('highlight');
+            });
+            document.querySelectorAll('.leaderboard-header').forEach(header => {
+                header.classList.remove('highlight-header');
+            });
+            if (!isSelected) {
+                document.querySelectorAll('.chip').forEach(c => {
+                    if (c.textContent.trim() === chipValue) {
+                        c.classList.add('highlight');
+                        const content = c.parentNode.parentNode;
+                        if (content) {
+                            content.previousElementSibling.classList.add('highlight-header');
+                        }
+                    }
+                });
+            }
+        });
+    });
+});
     </script>
 </head>
 
