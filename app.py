@@ -37,7 +37,7 @@ def create_snowpark_session():
 @app.route("/")
 def leaderboard():
     session = create_snowpark_session()
-    
+
     # SQL query to select all columns from the leaderboard view
     df = session.table('GOLF_LEAGUE.ANALYTICS.LEADERBOARD_DISPLAY_DETAILED_VW').select("RANK","ENTRY_NAME","TOURNAMENT","TEAM_SCORE","SELECTIONS").order_by('RANK')
     results = df.collect()
