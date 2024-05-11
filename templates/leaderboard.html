@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ tournament_name }}</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
+    <link href='https://fonts.googleapis.com/css?family=:Lexend' rel='stylesheet'>
     <style>
         body {
             background-color: #f4f4f4;
@@ -24,6 +25,7 @@
         }
         .card-content {
             display: none; /* Initially hide the content */
+            align-items: end;
         }
         .chip {
             display: inline-block;
@@ -52,11 +54,6 @@
                         <span>{{ row.ENTRY_NAME }}</span>
                         <span class="score">{{ row.TEAM_SCORE }}</span>
                     </div>
-                    <button class="card-header-icon" aria-label="more options">
-                        <span class="icon">
-                            <i class="fas fa-angle-down" aria-hidden="true"></i>
-                        </span>
-                    </button>
                 </header>
                 <div class="card-content">
                     {% for selection in row.SELECTIONS.split(',') %}
