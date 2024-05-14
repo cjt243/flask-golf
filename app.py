@@ -1,7 +1,8 @@
+from pytz import timezone
 from flask import Flask, render_template
 from flask_compress import Compress
 from snowflake.snowpark import Session
-from snowflake.snowpark.functions import udf
+from snowflake.snowpark.functions import udf, col
 import os
 try:
     from config import *
@@ -45,14 +46,17 @@ def leaderboard():
     # SQL query to select all columns from the leaderboard view
     df = session.table('GOLF_LEAGUE.ANALYTICS.LEADERBOARD_DISPLAY_DETAILED_VW').select("RANK","ENTRY_NAME","TOURNAMENT","TEAM_SCORE","SELECTIONS").order_by('RANK')
     results = df.collect()
-    
-    session.close()
-
     # Query to get the name of the active tournament
     tournament_name = results[0]['TOURNAMENT'] if results else None
+    last_updated = session.table('GOLF_LEAGUE.ANALYTICS.LIVE_TOURNAMENT_STATS_FACT').select('LAST_UPDATED','EVENT_NAME').filter(col('EVENT_NAME') == tournament_name).order_by('LAST_UPDATED', ascending=False).limit(1).collect()[0]['LAST_UPDATED']
+
+    last_updated = last_updated.replace(tzinfo=timezone('UTC')).astimezone(timezone('US/Eastern')).strftime('%A %B %d @ %I:%M %p %Z')
+    # last_updated = last_updated.astimezone(timezone('US/Eastern'))
+    # last_updated = last_updated.strftime('%a %b %d %I:%M %p %Z')
+    session.close()
 
     # Start HTML response, using the tournament name
-    return render_template('leaderboard.html', tournament_name=tournament_name, results=results)
+    return render_template('leaderboard.html', tournament_name=tournament_name, results=results, last_updated=last_updated)
 
 # if __name__ == "__main__":
 #     app.run(debug=True)

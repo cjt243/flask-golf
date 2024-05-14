@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ tournament_name }}</title>
+    <title>80 Yard Bombs Cup</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
     <link href='https://fonts.googleapis.com/css?family=Roboto' rel='stylesheet'>
     <style>
@@ -27,8 +27,8 @@
         }
         .card-header-title {
             width: 100%;
-            padding: 10px;
-            font-size: 14px;
+            padding: 5px;
+            font-size: 16px;
             font-weight: bold;
             display: flex;
             justify-content: space-between;
@@ -49,7 +49,7 @@
             background-color: #007acc;
             color: #fff;
             border-radius: 25px;
-            font-size: 12px;
+            font-size: 14px;
             transition: background-color 0.3s ease;
         }
         .chip:hover {
@@ -72,10 +72,13 @@
         .title {
             font-size: 24px;
             font-weight: bold;
-            text-align: center;
+            text-align: left;
             margin-bottom: 20px;
-            color: #007acc;
+            color: #3e8ed0;
             text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        .tag {
+            margin-bottom: 30px;
         }
     </style>
 </head>
@@ -84,6 +87,7 @@
     <section class="section">
         <div class="container">
             <h1 class="title">{{ tournament_name }}</h1>
+            <div class="tag is-info">{{ last_updated }}</div>
             {% for row in results %}
             <div class="card" onclick="toggleContent(this)" aria-expanded="false" role="button">
                 <header class="card-header">
