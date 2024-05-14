@@ -1,4 +1,5 @@
 from flask import Flask, render_template
+from flask_compress import Compress
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import udf
 import os
@@ -8,6 +9,8 @@ except ModuleNotFoundError:
     print('Deploying in prod environment.')
 
 app = Flask(__name__) 
+Compress(app)
+
 
 def create_snowpark_session():
     if os.getenv('SNOWFLAKE_ACCOUNT') == None:
