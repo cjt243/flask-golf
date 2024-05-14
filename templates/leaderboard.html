@@ -6,38 +6,76 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ tournament_name }}</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
-    <link href='https://fonts.googleapis.com/css?family=:Lexend' rel='stylesheet'>
+    <link href='https://fonts.googleapis.com/css?family=Roboto' rel='stylesheet'>
     <style>
         body {
-            background-color: #f4f4f4;
+            background-color: #1e1e1e;
+            font-family: 'Roboto', sans-serif;
+            color: #e0e0e0;
         }
         .card {
-            margin-bottom: 10px; /* Reduced margin */
-            padding: 5px; /* Added padding for better spacing */
-            font-size: 14px; /* Smaller font size to fit more entries */
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+            background-color: #2b2b2b;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        .card-header {
+            box-shadow: none;
         }
         .card-header-title {
-            font-size: 14px; /* Smaller font size */
+            width: 100%;
+            padding: 10px;
+            font-size: 14px;
             font-weight: bold;
             display: flex;
             justify-content: space-between;
-            align-items: center; /* Align items vertically */
+            align-items: center;
+            border-radius: 10px;
+            background: none;
+            color: #e0e0e0;
         }
         .card-content {
-            display: none; /* Initially hide the content */
+            display: none;
             align-items: end;
+            transition: all 0.3s ease;
         }
         .chip {
             display: inline-block;
             padding: 5px 10px;
             margin: 5px;
-            background-color: #e0e0e0;
+            background-color: #007acc;
+            color: #fff;
             border-radius: 25px;
-            font-size: 12px; /* Smaller font size for chips */
+            font-size: 12px;
+            transition: background-color 0.3s ease;
+        }
+        .chip:hover {
+            background-color: #005fa3;
         }
         .score {
-            color: #3273dc;
             font-weight: bold;
+            transition: color 0.3s ease;
+        }
+        .high-score {
+            color: #4caf50;
+        }
+        .low-score {
+            color: #f44336;
+        }
+        .card:hover {
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.7);
+            background-color: #343434;
+        }
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+            color: #007acc;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
         }
     </style>
 </head>
@@ -45,19 +83,19 @@
 <body>
     <section class="section">
         <div class="container">
-            <h1 class="title has-text-centered">{{ tournament_name }}</h1>
+            <h1 class="title">{{ tournament_name }}</h1>
             {% for row in results %}
-            <div class="card">
-                <header class="card-header" onclick="toggleContent(this)">
+            <div class="card" onclick="toggleContent(this)" aria-expanded="false" role="button">
+                <header class="card-header">
                     <div class="card-header-title">
                         <span>{{ row.RANK }}</span>
                         <span>{{ row.ENTRY_NAME }}</span>
-                        <span class="score">{{ row.TEAM_SCORE }}</span>
+                        <span class="score {% if row.TEAM_SCORE < 0 %}low-score{% else %}high-score{% endif %}">{{ row.TEAM_SCORE }}</span>
                     </div>
                 </header>
                 <div class="card-content">
                     {% for selection in row.SELECTIONS.split(',') %}
-                    <span class="chip">{{ selection.strip() }}</span>
+                    <span class="chip" aria-label="Player: {{ selection.strip() }}">{{ selection.strip() }}</span>
                     {% endfor %}
                 </div>
             </div>
@@ -66,13 +104,11 @@
     </section>
 
     <script>
-        function toggleContent(header) {
-            var content = header.nextElementSibling;
-            if (content.style.display === 'block') {
-                content.style.display = 'none';
-            } else {
-                content.style.display = 'block';
-            }
+        function toggleContent(card) {
+            var content = card.querySelector('.card-content');
+            var isExpanded = card.getAttribute('aria-expanded') === 'true';
+            card.setAttribute('aria-expanded', !isExpanded);
+            content.style.display = isExpanded ? 'none' : 'block';
         }
     </script>
 </body>
