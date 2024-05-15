@@ -48,15 +48,12 @@ def leaderboard():
     results = df.collect()
     # Query to get the name of the active tournament
     tournament_name = results[0]['TOURNAMENT'] if results else None
+    
+    # Get the latest timestamp from the leaderboard
     last_updated = session.table('GOLF_LEAGUE.ANALYTICS.LIVE_TOURNAMENT_STATS_FACT').select('LAST_UPDATED','EVENT_NAME').filter(col('EVENT_NAME') == tournament_name).order_by('LAST_UPDATED', ascending=False).limit(1).collect()[0]['LAST_UPDATED']
-
     last_updated = last_updated.replace(tzinfo=timezone('UTC')).astimezone(timezone('US/Eastern')).strftime('%A %B %d @ %I:%M %p %Z')
-    # last_updated = last_updated.astimezone(timezone('US/Eastern'))
-    # last_updated = last_updated.strftime('%a %b %d %I:%M %p %Z')
+    
     session.close()
 
     # Start HTML response, using the tournament name
     return render_template('leaderboard.html', tournament_name=tournament_name, results=results, last_updated=last_updated)
-
-# if __name__ == "__main__":
-#     app.run(debug=True)
