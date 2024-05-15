@@ -57,3 +57,27 @@ def leaderboard():
 
     # Start HTML response, using the tournament name
     return render_template('leaderboard.html', tournament_name=tournament_name, results=results, last_updated=last_updated)
+
+@app.route("/players")
+def player_standings():
+    session = create_snowpark_session()
+    session.query_tag = os.getenv("SNOWFLAKE_QUERY_TAG")
+
+    # SQL query to select all columns from the player leaderboard view
+    df = session.table('GOLF_LEAGUE.ANALYTICS.PLAYER_LEADERBOARD_DETAILED_VW').select(
+        "EVENT_NAME", "POSITION", "THRU", "FULL_NAME", "ROUND", "CUT_TOTAL", "TOTAL", 
+        "SG_OTT", "SG_APP", "SG_PUTT", "SG_T2G", "SG_ARG", "SG_TOTAL", "ENTRY_NAMES", "SELECTIONS"
+    ).order_by('TOTAL')
+    results = df.collect()
+    
+    # Query to get the name of the active tournament
+    tournament_name = results[0]['EVENT_NAME'] if results else None
+    
+    # Get the latest timestamp from the leaderboard
+    last_updated = session.table('GOLF_LEAGUE.ANALYTICS.LIVE_TOURNAMENT_STATS_FACT').select('LAST_UPDATED','EVENT_NAME').filter(col('EVENT_NAME') == tournament_name).order_by('LAST_UPDATED', ascending=False).limit(1).collect()[0]['LAST_UPDATED']
+    last_updated = last_updated.replace(tzinfo=timezone('UTC')).astimezone(timezone('US/Eastern')).strftime('%A %B %d @ %I:%M %p %Z')
+    
+    session.close()
+
+    # Start HTML response, using the tournament name
+    return render_template('player_standings.html', tournament_name=tournament_name, results=results, last_updated=last_updated)
