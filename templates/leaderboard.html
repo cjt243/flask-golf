@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>80 Yard Bombs Cup</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 50 50%22><text y=%2250%22 font-size=%2250%22>&#x1F3C6;</text></svg>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
     <link href='https://fonts.googleapis.com/css?family=Roboto' rel='stylesheet'>
     <style>
@@ -89,6 +90,12 @@
         <div class="container">
             <h1 class="title">{{ tournament_name }}</h1>
             <div class="tag is-info">{{ last_updated }}</div>
+            <div class="tabs is-centered">
+                <ul>
+                    <li class="is-active"><a href="/">Leaderboard</a></li>
+                    <li><a href="/players">Player Standings</a></li>
+                </ul>
+            </div>
             {% for row in results %}
             <div class="card" onclick="toggleContent(this)" aria-expanded="false" role="button">
                 <header class="card-header">

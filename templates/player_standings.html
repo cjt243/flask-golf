@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Standings</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 50 50%22><text y=%2250%22 font-size=%2250%22>&#x1F3C6;</text></svg>">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
+    <link href='https://fonts.googleapis.com/css?family=Roboto' rel='stylesheet'>
+    <style>
+    body {
+        background-color: #1e1e1e;
+        font-family: 'Roboto', sans-serif;
+    }
+    .score {
+        font-weight: bold;
+        transition: color 0.3s ease;
+    }
+    .high-score {
+        color: #4caf50;
+    }
+    .low-score {
+        color: #f44336;
+    }
+    .title {
+        font-size: 24px;
+        font-weight: bold;
+        text-align: left;
+        margin-bottom: 20px;
+        color: #3e8ed0;
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+    }
+    .tag.is-info {
+            margin-bottom: 30px;
+            font-size: 14px;
+    }
+    .table {
+        background-color: #1e1e1e;
+        color: #ffffff;
+        font-size: 14px;
+    }
+    .table th, .table td {
+        border-color: #333333;
+    }
+    .table th {
+        background-color: #333333;
+    }
+    .table th, .table td {
+        border-color: #333333;
+        white-space: nowrap; /* Add this line */
+    }
+    .table thead th {
+        color: #ffffff;
+    }
+    .chip {
+        display: inline-block;
+        padding: 3px 6px;
+        margin: 5px;
+        background-color: #007acc;
+        color: #fff;
+        border-radius: 25px;
+        font-size: 12px;
+        transition: background-color 0.3s ease;
+    }
+    </style>
+</head>
+
+<body>
+    <section class="section">
+        <div class="container">
+            <h1 class="title">{{ tournament_name }}</h1>
+            <p class="tag is-info">{{ last_updated }}</p>
+            <div class="tabs is-centered">
+                <ul>
+                    <li><a href="/">Leaderboard</a></li>
+                    <li class="is-active"><a href="/players">Player Standings</a></li>
+                </ul>
+            </div>
+            <div class="table-container">
+                <table class="table is-bordered is-narrow is-fullwidth">
+                    <thead>
+                        <tr>
+                            <th>Position</th>
+                            <th>Player</th>
+                            <th>Score</th>
+                            <th>Thru</th>
+                            <th>Round</th>
+                            <th>SG OTT</th>
+                            <th>SG APP</th>
+                            <th>SG Putt</th>
+                            <th>SG T2G</th>
+                            <th>SG ARG</th>
+                            <th>SG Total</th>
+                            <th>Selections</th>
+                            <th>Entry Names</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in results %}
+                        <tr>
+                            <td>{{ row.POSITION }}</td>
+                            <td>{{ row.FULL_NAME }}</td>
+                            <td>{{ row.TOTAL }}</td>
+                            <td>{{ row.THRU }}</td>
+                            <td>{{ row.ROUND }}</td>
+                            <td>{{ row.SG_OTT }}</td>
+                            <td>{{ row.SG_APP }}</td>
+                            <td>{{ row.SG_PUTT }}</td>
+                            <td>{{ row.SG_T2G }}</td>
+                            <td>{{ row.SG_ARG }}</td>
+                            <td>{{ row.SG_TOTAL }}</td>
+                            <td>{{ row.SELECTIONS }}</td>
+                            <td>
+                                {% for entry_name in row.ENTRY_NAMES.split(',') %}
+                                {% if entry_name.strip() %}
+                                <span class="chip">{{ entry_name.strip() }}</span>
+                                {% endif %}
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+    <script>
+    </script>
+    </body>
+    </html>
