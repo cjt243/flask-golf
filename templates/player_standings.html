@@ -63,6 +63,16 @@
         font-size: 12px;
         transition: background-color 0.3s ease;
     }
+    .sticky-col {
+        position: -webkit-sticky;
+        position: sticky;
+        left: 0;
+        background-color: #1e1e1e;
+        z-index: 1;
+    }
+    .sticky-col-header {
+        z-index: 2;
+    }
     </style>
 </head>
 
@@ -82,17 +92,17 @@
                     <thead>
                         <tr>
                             <th>Position</th>
-                            <th>Player</th>
+                            <th class="sticky-col sticky-col-header">Player</th>
                             <th>Score</th>
                             <th>Thru</th>
                             <th>Round</th>
+                            <th>Selections</th>
                             <th>SG OTT</th>
                             <th>SG APP</th>
                             <th>SG Putt</th>
                             <th>SG T2G</th>
                             <th>SG ARG</th>
                             <th>SG Total</th>
-                            <th>Selections</th>
                             <th>Entry Names</th>
                         </tr>
                     </thead>
@@ -100,17 +110,17 @@
                         {% for row in results %}
                         <tr>
                             <td>{{ row.POSITION }}</td>
-                            <td>{{ row.FULL_NAME }}</td>
-                            <td>{{ row.TOTAL }}</td>
-                            <td>{{ row.THRU }}</td>
-                            <td>{{ row.ROUND }}</td>
-                            <td>{{ row.SG_OTT }}</td>
-                            <td>{{ row.SG_APP }}</td>
-                            <td>{{ row.SG_PUTT }}</td>
-                            <td>{{ row.SG_T2G }}</td>
-                            <td>{{ row.SG_ARG }}</td>
-                            <td>{{ row.SG_TOTAL }}</td>
-                            <td>{{ row.SELECTIONS }}</td>
+                            <td class="sticky-col">{{ row.FULL_NAME }}</td>
+                            <td>{{ row.TOTAL | int }}</td>
+                            <td>{{ row.THRU | int }}</td>
+                            <td>{{ row.ROUND | int }}</td>
+                            <td>{{ row.SELECTIONS | int }}</td>
+                            <td>{{ row.SG_OTT | round(2) }}</td>
+                            <td>{{ row.SG_APP | round(2) }}</td>
+                            <td>{{ row.SG_PUTT | round(2) }}</td>
+                            <td>{{ row.SG_T2G | round(2) }}</td>
+                            <td>{{ row.SG_ARG | round(2) }}</td>
+                            <td>{{ row.SG_TOTAL | round(2) }}</td>
                             <td>
                                 {% for entry_name in row.ENTRY_NAMES.split(',') %}
                                 {% if entry_name.strip() %}
