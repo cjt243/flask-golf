@@ -68,8 +68,9 @@ def player_standings():
     df = session.table('GOLF_LEAGUE.ANALYTICS.PLAYER_LEADERBOARD_DETAILED_VW').select(
         "EVENT_NAME", "POSITION", "THRU", "FULL_NAME", "ROUND", "CUT_TOTAL", "TOTAL", 
         "SG_OTT", "SG_APP", "SG_PUTT", "SG_T2G", "SG_ARG", "SG_TOTAL", "ENTRY_NAMES", "SELECTIONS"
-    ).order_by('TOTAL')
+    ).order_by('TOTAL').fillna(0)
     results = df.collect()
+
     
     # Query to get the name of the active tournament
     tournament_name = results[0]['EVENT_NAME'] if results else None
