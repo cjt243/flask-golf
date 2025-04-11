@@ -106,7 +106,7 @@
                     </div>
                 </header>
                 <div class="card-content">
-                    {% for selection in row.SELECTIONS.split(',') %}
+                    {% for selection in row.PICKS.split(',') %}
                     <span class="chip" aria-label="Player: {{ selection.strip() }}">{{ selection.strip() }}</span>
                     {% endfor %}
                 </div>
