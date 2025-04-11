@@ -5,6 +5,7 @@ from flask_compress import Compress
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import col
 import os
+import base64
 try:
     from config import *
 except ModuleNotFoundError:
@@ -15,27 +16,43 @@ Compress(app)
 
 
 def create_snowpark_session():
-    if os.getenv('SNOWFLAKE_ACCOUNT') == None:
-        connection_parameters = {
-            "account": SNOWFLAKE_ACCOUNT,
-            "user": SNOWFLAKE_USER,
-            "password": SNOWFLAKE_PASSWORD,
-            "role": SNOWFLAKE_ROLE,
-            "warehouse": SNOWFLAKE_WAREHOUSE,
-            "database": SNOWFLAKE_DATABASE,
-            "schema": SNOWFLAKE_SCHEMA
-        }
+    from cryptography.hazmat.backends import default_backend
+    from cryptography.hazmat.primitives import serialization
 
-    else:
-         connection_parameters = {
-            "account": os.getenv("SNOWFLAKE_ACCOUNT"),
-            "user": os.getenv("SNOWFLAKE_USER"),
-            "password": os.getenv("SNOWFLAKE_PASSWORD"),
-            "role": os.getenv("SNOWFLAKE_ROLE"),
-            "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE"),
-            "database": os.getenv("SNOWFLAKE_DATABASE"),
-            "schema": os.getenv("SNOWFLAKE_SCHEMA")
-        }
+    # Get private key and connection parameters from either environment variables or config
+    private_key = os.getenv("SNOWFLAKE_PRIVATE_KEY") or SNOWFLAKE_PRIVATE_KEY
+    account = os.getenv("SNOWFLAKE_ACCOUNT") or SNOWFLAKE_ACCOUNT
+    user = os.getenv("SNOWFLAKE_USER") or SNOWFLAKE_USER
+    role = os.getenv("SNOWFLAKE_ROLE") or SNOWFLAKE_ROLE
+    warehouse = os.getenv("SNOWFLAKE_WAREHOUSE") or SNOWFLAKE_WAREHOUSE
+    database = os.getenv("SNOWFLAKE_DATABASE") or SNOWFLAKE_DATABASE
+    schema = os.getenv("SNOWFLAKE_SCHEMA") or SNOWFLAKE_SCHEMA
+
+    # Decode and format the private key
+    key_bytes = base64.b64decode(private_key)
+    p_key = serialization.load_pem_private_key(
+        key_bytes,
+        password=None,  # None since key is not encrypted
+        backend=default_backend()
+    )
+    pkb = p_key.private_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+
+    # Create connection parameters
+    connection_parameters = {
+        "account": account,
+        "user": user,
+        "private_key": pkb,
+        "role": role,
+        "warehouse": warehouse,
+        "database": database,
+        "schema": schema,
+        "authenticator": "SNOWFLAKE_JWT"
+    }
+
     session = Session.builder.configs(connection_parameters).create()
     return session
 
