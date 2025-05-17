@@ -66,7 +66,7 @@ def leaderboard():
     results = df.collect()
     # Query to get the name of the active tournament
     # tournament_name = results[0]['TOURNAMENT'] if results else None
-    tournament_name = 'Masters Tournament'
+    tournament_name = 'PGA Championship'
     
     # Get the latest timestamp from the leaderboard
     last_updated = session.table('GOLF_LEAGUE.APPLICATION.LATEST_LEADERBOARD_UPDATE_VW').select('LATEST_UPDATE','TOURNAMENT_NAME').filter(col('TOURNAMENT_NAME') == tournament_name).limit(1).collect()[0]['LATEST_UPDATE']
