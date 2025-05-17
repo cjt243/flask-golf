@@ -75,7 +75,7 @@ def leaderboard():
     session.close()
 
     # Start HTML response, using the tournament name
-    return render_template('leaderboard.html', tournament_name='Masters Tournament', results=results, last_updated=last_updated)
+    return render_template('leaderboard.html', tournament_name=tournament_name, results=results, last_updated=last_updated)
 
 # @app.route("/players")
 # def player_standings():
