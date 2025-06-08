@@ -28,9 +28,10 @@ Set the following variables to connect to Snowflake:
 - `SNOWFLAKE_DATABASE`
 - `SNOWFLAKE_SCHEMA`
 - `SNOWFLAKE_PRIVATE_KEY` – base64 encoded private key
+- `SNOWFLAKE_PASSWORD` – optional password for local testing
 - `SNOWFLAKE_QUERY_TAG` – optional query tag
 
-These can alternatively be defined in a local `config.py` when running the app on your machine.
+These variables can also be defined in a local `config.py` for development. If `SNOWFLAKE_PRIVATE_KEY` is not provided, the application will attempt password authentication using `SNOWFLAKE_PASSWORD`.
 
 ## Running the Server Locally
 
