@@ -19,8 +19,9 @@ def create_snowpark_session():
     from cryptography.hazmat.backends import default_backend
     from cryptography.hazmat.primitives import serialization
 
-    # Get private key and connection parameters from either environment variables or config
+    # Get authentication details and connection parameters from either environment variables or config
     private_key = os.getenv("SNOWFLAKE_PRIVATE_KEY") or SNOWFLAKE_PRIVATE_KEY
+    password = os.getenv("SNOWFLAKE_PASSWORD") or globals().get("SNOWFLAKE_PASSWORD")
     account = os.getenv("SNOWFLAKE_ACCOUNT") or SNOWFLAKE_ACCOUNT
     user = os.getenv("SNOWFLAKE_USER") or SNOWFLAKE_USER
     role = os.getenv("SNOWFLAKE_ROLE") or SNOWFLAKE_ROLE
@@ -28,30 +29,43 @@ def create_snowpark_session():
     database = os.getenv("SNOWFLAKE_DATABASE") or SNOWFLAKE_DATABASE
     schema = os.getenv("SNOWFLAKE_SCHEMA") or SNOWFLAKE_SCHEMA
 
-    # Decode and format the private key
-    key_bytes = base64.b64decode(private_key)
-    p_key = serialization.load_pem_private_key(
-        key_bytes,
-        password=None,  # None since key is not encrypted
-        backend=default_backend()
-    )
-    pkb = p_key.private_bytes(
-        encoding=serialization.Encoding.DER,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
-    )
+    if private_key:
+        # Decode and format the private key for key-pair authentication
+        key_bytes = base64.b64decode(private_key)
+        p_key = serialization.load_pem_private_key(
+            key_bytes,
+            password=None,  # None since key is not encrypted
+            backend=default_backend()
+        )
+        pkb = p_key.private_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        )
 
-    # Create connection parameters
-    connection_parameters = {
-        "account": account,
-        "user": user,
-        "private_key": pkb,
-        "role": role,
-        "warehouse": warehouse,
-        "database": database,
-        "schema": schema,
-        "authenticator": "SNOWFLAKE_JWT"
-    }
+        connection_parameters = {
+            "account": account,
+            "user": user,
+            "private_key": pkb,
+            "role": role,
+            "warehouse": warehouse,
+            "database": database,
+            "schema": schema,
+            "authenticator": "SNOWFLAKE_JWT"
+        }
+    elif password:
+        # Fallback to password-based authentication (useful for local testing)
+        connection_parameters = {
+            "account": account,
+            "user": user,
+            "password": password,
+            "role": role,
+            "warehouse": warehouse,
+            "database": database,
+            "schema": schema
+        }
+    else:
+        raise ValueError("Snowflake credentials not provided")
 
     session = Session.builder.configs(connection_parameters).create()
     return session
