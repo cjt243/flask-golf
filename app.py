@@ -264,8 +264,27 @@ def leaderboard():
         player_scores = {}
     
     # Get the latest timestamp from the leaderboard
-    last_updated = session.table('GOLF_LEAGUE.APPLICATION.LATEST_LEADERBOARD_UPDATE_VW').select('LATEST_UPDATE','TOURNAMENT_NAME').filter(col('TOURNAMENT_NAME') == tournament_name).limit(1).collect()[0]['LATEST_UPDATE']
-    last_updated = last_updated.replace(tzinfo=timezone('UTC')).astimezone(timezone('US/Eastern')).strftime('%A %B %d @ %I:%M %p %Z')
+    try:
+        latest_update_result = session.table('GOLF_LEAGUE.APPLICATION.LATEST_LEADERBOARD_UPDATE_VW').select('LATEST_UPDATE','TOURNAMENT_NAME').filter(col('TOURNAMENT_NAME') == tournament_name).limit(1).collect()
+        if latest_update_result:
+            last_updated = latest_update_result[0]['LATEST_UPDATE']
+            last_updated = last_updated.replace(tzinfo=timezone('UTC')).astimezone(timezone('US/Eastern')).strftime('%A %B %d @ %I:%M %p %Z')
+        else:
+            # Fallback: get latest update from leaderboard table directly
+            fallback_result = session.sql(f"""
+                SELECT MAX(LAST_UPDATED) as LATEST_UPDATE
+                FROM GOLF_LEAGUE.PRO_GOLF_DATA.LEADERBOARD l
+                JOIN GOLF_LEAGUE.PRO_GOLF_DATA.TOURNAMENT_SCHEDULE ts ON l.TOURNAMENT_ID = ts.TOURNAMENT_ID
+                WHERE ts.TOURNAMENT_NAME = '{tournament_name}'
+            """).collect()
+            if fallback_result and fallback_result[0]['LATEST_UPDATE']:
+                last_updated = fallback_result[0]['LATEST_UPDATE']
+                last_updated = last_updated.replace(tzinfo=timezone('UTC')).astimezone(timezone('US/Eastern')).strftime('%A %B %d @ %I:%M %p %Z')
+            else:
+                last_updated = "Data not available"
+    except Exception as e:
+        print(f"Error getting last updated timestamp: {e}")
+        last_updated = "Data not available"
     
     # No longer closing session since we're reusing it
     
@@ -302,8 +321,27 @@ def player_standings():
     cut_line = results[0]['CUT_LINE'] if results else None
     
     # Get the latest timestamp from the leaderboard
-    last_updated = session.table('GOLF_LEAGUE.APPLICATION.LATEST_LEADERBOARD_UPDATE_VW').select('LATEST_UPDATE','TOURNAMENT_NAME').filter(col('TOURNAMENT_NAME') == tournament_name).limit(1).collect()[0]['LATEST_UPDATE']
-    last_updated = last_updated.replace(tzinfo=timezone('UTC')).astimezone(timezone('US/Eastern')).strftime('%A %B %d @ %I:%M %p %Z')
+    try:
+        latest_update_result = session.table('GOLF_LEAGUE.APPLICATION.LATEST_LEADERBOARD_UPDATE_VW').select('LATEST_UPDATE','TOURNAMENT_NAME').filter(col('TOURNAMENT_NAME') == tournament_name).limit(1).collect()
+        if latest_update_result:
+            last_updated = latest_update_result[0]['LATEST_UPDATE']
+            last_updated = last_updated.replace(tzinfo=timezone('UTC')).astimezone(timezone('US/Eastern')).strftime('%A %B %d @ %I:%M %p %Z')
+        else:
+            # Fallback: get latest update from leaderboard table directly
+            fallback_result = session.sql(f"""
+                SELECT MAX(LAST_UPDATED) as LATEST_UPDATE
+                FROM GOLF_LEAGUE.PRO_GOLF_DATA.LEADERBOARD l
+                JOIN GOLF_LEAGUE.PRO_GOLF_DATA.TOURNAMENT_SCHEDULE ts ON l.TOURNAMENT_ID = ts.TOURNAMENT_ID
+                WHERE ts.TOURNAMENT_NAME = '{tournament_name}'
+            """).collect()
+            if fallback_result and fallback_result[0]['LATEST_UPDATE']:
+                last_updated = fallback_result[0]['LATEST_UPDATE']
+                last_updated = last_updated.replace(tzinfo=timezone('UTC')).astimezone(timezone('US/Eastern')).strftime('%A %B %d @ %I:%M %p %Z')
+            else:
+                last_updated = "Data not available"
+    except Exception as e:
+        print(f"Error getting last updated timestamp: {e}")
+        last_updated = "Data not available"
     
     # No longer closing session since we're reusing it
     
