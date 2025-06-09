@@ -173,7 +173,7 @@
                  aria-expanded="false" 
                  role="button"
                  data-team="{{ row.ENTRY_NAME }}"
-                 style="animation-delay: {{ loop.index0 * 0.05 }}s">
+                 data-delay="{{ loop.index0 * 0.05 }}">
                 
                 <!-- Card Header -->
                 <div class="flex items-center p-4 cursor-pointer">
@@ -420,11 +420,10 @@
             // Missed cut styling is now handled server-side via template logic
 
             // Add stagger animation on load
-            const cards = document.querySelectorAll('[data-animate]');
-            cards.forEach((card, index) => {
-                setTimeout(() => {
-                    card.classList.add('animate-fade-in');
-                }, index * 50);
+            const cards = document.querySelectorAll('.team-card[data-delay]');
+            cards.forEach((card) => {
+                const delay = parseFloat(card.dataset.delay) * 1000;
+                card.style.animationDelay = `${delay}ms`;
             });
         });
     </script>
