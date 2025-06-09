@@ -7,3 +7,5 @@ config.py
 venv/
 .vscode/
 .cursorignore
+admin/
+og_task.txt

@@ -60,7 +60,35 @@ def get_snowpark_session():
     
     return _snowpark_session
 
-
+def get_active_tournament_config():
+    """Get currently active tournament configuration"""
+    try:
+        session = get_snowpark_session()
+        result = session.sql("""
+            SELECT * FROM GOLF_LEAGUE.FANTASY_LEAGUE_DATA.TOURNAMENT_CONFIG 
+            WHERE IS_ACTIVE = TRUE 
+            LIMIT 1
+        """).collect()
+        if result:
+            # Convert Row object to dictionary
+            row = result[0]
+            return {
+                'CONFIG_ID': row['CONFIG_ID'],
+                'TOURNAMENT_NAME': row['TOURNAMENT_NAME'],
+                'TOURNAMENT_ID': row['TOURNAMENT_ID'],
+                'SEASON_YEAR': row['SEASON_YEAR'],
+                'IS_ACTIVE': row['IS_ACTIVE'],
+                'PIPELINE_START_HOUR': row['PIPELINE_START_HOUR'],
+                'PIPELINE_END_HOUR': row['PIPELINE_END_HOUR'],
+                'PIPELINE_START_DATE': row['PIPELINE_START_DATE'],
+                'PIPELINE_END_DATE': row['PIPELINE_END_DATE'],
+                'CREATED_TIMESTAMP': row['CREATED_TIMESTAMP'],
+                'UPDATED_TIMESTAMP': row['UPDATED_TIMESTAMP']
+            }
+        return None
+    except Exception as e:
+        print(f"Warning: Unable to load active tournament configuration: {e}")
+        return None
 
 def create_snowpark_session():
     from cryptography.hazmat.backends import default_backend
@@ -131,9 +159,10 @@ def leaderboard():
     # SQL query to select all columns from the leaderboard view
     df = session.table('GOLF_LEAGUE.APPLICATION.LEADERBOARD_DISPLAY_DETAILED_VW').select("RANK","ENTRY_NAME","TOURNAMENT","TEAM_SCORE","PICKS").order_by('RANK')
     results = df.collect()
-    # Query to get the name of the active tournament
-    # tournament_name = results[0]['TOURNAMENT'] if results else None
-    tournament_name = 'PGA Championship'
+    
+    # Get active tournament configuration
+    active_config = get_active_tournament_config()
+    tournament_name = active_config['TOURNAMENT_NAME'] if active_config else 'Tournament'
     
 
     
@@ -216,7 +245,9 @@ def player_standings():
 
 @app.route("/make_picks")
 def make_picks():
-    tournament = 'U.S. Open'
+    # Get active tournament configuration
+    active_config = get_active_tournament_config()
+    tournament = active_config['TOURNAMENT_NAME'] if active_config else 'Tournament'
     
     # Check cache first
     cached_data = get_cached('pick_options_data')
@@ -256,7 +287,10 @@ def submit_picks():
   
         session = get_snowpark_session()
         session.query_tag = os.getenv("SNOWFLAKE_QUERY_TAG")
-        tournament = 'U.S. Open'
+        
+        # Get active tournament configuration
+        active_config = get_active_tournament_config()
+        tournament = active_config['TOURNAMENT_NAME'] if active_config else 'Tournament'
 
         try:
             session.write_pandas(
