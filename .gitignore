@@ -6,3 +6,4 @@ instance/
 config.py
 venv/
 .vscode/
+.cursorignore
