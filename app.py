@@ -72,7 +72,7 @@ def get_active_tournament_config():
         if result:
             # Convert Row object to dictionary
             row = result[0]
-            return {
+            active_config = {
                 'CONFIG_ID': row['CONFIG_ID'],
                 'TOURNAMENT_NAME': row['TOURNAMENT_NAME'],
                 'TOURNAMENT_ID': row['TOURNAMENT_ID'],
@@ -85,9 +85,76 @@ def get_active_tournament_config():
                 'CREATED_TIMESTAMP': row['CREATED_TIMESTAMP'],
                 'UPDATED_TIMESTAMP': row['UPDATED_TIMESTAMP']
             }
+            
+            # Check if this tournament has leaderboard data
+            if has_leaderboard_data(active_config['TOURNAMENT_NAME']):
+                return active_config
+            else:
+                print(f"Warning: Active tournament '{active_config['TOURNAMENT_NAME']}' has no leaderboard data. Falling back to most recent tournament with data.")
+                return get_fallback_tournament_config()
+        else:
+            print("Warning: No active tournament configured. Falling back to most recent tournament with data.")
+            return get_fallback_tournament_config()
+    except Exception as e:
+        print(f"Warning: Unable to load active tournament configuration: {e}. Falling back to most recent tournament with data.")
+        return get_fallback_tournament_config()
+
+def has_leaderboard_data(tournament_name):
+    """Check if a tournament has leaderboard data"""
+    try:
+        session = get_snowpark_session()
+        result = session.sql(f"""
+            SELECT COUNT(*) as count 
+            FROM GOLF_LEAGUE.PRO_GOLF_DATA.LEADERBOARD 
+            WHERE TOURNAMENT_ID IN (
+                SELECT TOURNAMENT_ID 
+                FROM GOLF_LEAGUE.PRO_GOLF_DATA.TOURNAMENT_SCHEDULE 
+                WHERE TOURNAMENT_NAME = '{tournament_name}'
+            )
+        """).collect()
+        return result[0]['COUNT'] > 0 if result else False
+    except Exception as e:
+        print(f"Error checking leaderboard data for {tournament_name}: {e}")
+        return False
+
+def get_fallback_tournament_config():
+    """Get the most recent tournament based on leaderboard data"""
+    try:
+        session = get_snowpark_session()
+        result = session.sql("""
+            SELECT 
+                ts.TOURNAMENT_NAME,
+                ts.TOURNAMENT_ID,
+                ts.SEASON_YEAR,
+                MAX(l.LAST_UPDATED) as LAST_UPDATED
+            FROM GOLF_LEAGUE.PRO_GOLF_DATA.LEADERBOARD l
+            JOIN GOLF_LEAGUE.PRO_GOLF_DATA.TOURNAMENT_SCHEDULE ts 
+                ON l.TOURNAMENT_ID = ts.TOURNAMENT_ID
+            GROUP BY ts.TOURNAMENT_NAME, ts.TOURNAMENT_ID, ts.SEASON_YEAR
+            ORDER BY MAX(l.LAST_UPDATED) DESC
+            LIMIT 1
+        """).collect()
+        
+        if result:
+            row = result[0]
+            return {
+                'CONFIG_ID': None,
+                'TOURNAMENT_NAME': row['TOURNAMENT_NAME'],
+                'TOURNAMENT_ID': row['TOURNAMENT_ID'],
+                'SEASON_YEAR': row['SEASON_YEAR'],
+                'IS_ACTIVE': False,  # Mark as fallback
+                'PIPELINE_START_HOUR': None,
+                'PIPELINE_END_HOUR': None,
+                'PIPELINE_START_DATE': None,
+                'PIPELINE_END_DATE': None,
+                'CREATED_TIMESTAMP': None,
+                'UPDATED_TIMESTAMP': None,
+                'IS_FALLBACK': True,  # Flag to indicate this is a fallback
+                'LAST_UPDATED': row['LAST_UPDATED']
+            }
         return None
     except Exception as e:
-        print(f"Warning: Unable to load active tournament configuration: {e}")
+        print(f"Error getting fallback tournament: {e}")
         return None
 
 def create_snowpark_session():
@@ -150,8 +217,8 @@ def leaderboard():
     # Check cache first
     cached_data = get_cached('leaderboard_data')
     if cached_data:
-        results, tournament_name, last_updated, cut_line, player_scores = cached_data
-        return render_template('leaderboard.html', tournament_name=tournament_name, results=results, last_updated=last_updated, cut_line=cut_line, player_scores=player_scores)
+        results, tournament_name, last_updated, cut_line, player_scores, is_fallback = cached_data
+        return render_template('leaderboard.html', tournament_name=tournament_name, results=results, last_updated=last_updated, cut_line=cut_line, player_scores=player_scores, is_fallback=is_fallback)
     
     session = get_snowpark_session()
     session.query_tag = os.getenv("SNOWFLAKE_QUERY_TAG")
@@ -163,6 +230,7 @@ def leaderboard():
     # Get active tournament configuration
     active_config = get_active_tournament_config()
     tournament_name = active_config['TOURNAMENT_NAME'] if active_config else 'Tournament'
+    is_fallback = active_config.get('IS_FALLBACK', False) if active_config else False
     
 
     
@@ -202,18 +270,18 @@ def leaderboard():
     # No longer closing session since we're reusing it
     
     # Cache the data
-    set_cache('leaderboard_data', (results, tournament_name, last_updated, cut_line, player_scores))
+    set_cache('leaderboard_data', (results, tournament_name, last_updated, cut_line, player_scores, is_fallback))
     
     # Start HTML response, using the tournament name
-    return render_template('leaderboard.html', tournament_name=tournament_name, results=results, last_updated=last_updated, cut_line=cut_line, player_scores=player_scores)
+    return render_template('leaderboard.html', tournament_name=tournament_name, results=results, last_updated=last_updated, cut_line=cut_line, player_scores=player_scores, is_fallback=is_fallback)
 
 @app.route("/players")
 def player_standings():
     # Check cache first
     cached_data = get_cached('player_standings_data')
     if cached_data:
-        results, tournament_name, cut_line, last_updated = cached_data
-        return render_template('player_standings.html', tournament_name=tournament_name, results=results, last_updated=last_updated, cut_line=cut_line)
+        results, tournament_name, cut_line, last_updated, is_fallback = cached_data
+        return render_template('player_standings.html', tournament_name=tournament_name, results=results, last_updated=last_updated, cut_line=cut_line, is_fallback=is_fallback)
     
     session = get_snowpark_session()
     session.query_tag = os.getenv("SNOWFLAKE_QUERY_TAG")
@@ -225,8 +293,10 @@ def player_standings():
     ).order_by('TOTAL_SCORE_INTEGER')
     results = df.collect()
 
-    # Query to get the name of the active tournament
-    tournament_name = results[0]['TOURNAMENT'] if results else None
+    # Get active tournament configuration for fallback detection
+    active_config = get_active_tournament_config()
+    tournament_name = results[0]['TOURNAMENT'] if results else (active_config['TOURNAMENT_NAME'] if active_config else 'Tournament')
+    is_fallback = active_config.get('IS_FALLBACK', False) if active_config else False
     
     # Get the cut line value (same for all players in the tournament)
     cut_line = results[0]['CUT_LINE'] if results else None
@@ -238,22 +308,23 @@ def player_standings():
     # No longer closing session since we're reusing it
     
     # Cache the data
-    set_cache('player_standings_data', (results, tournament_name, cut_line, last_updated))
+    set_cache('player_standings_data', (results, tournament_name, cut_line, last_updated, is_fallback))
 
     # Start HTML response, using the tournament name
-    return render_template('player_standings.html', tournament_name=tournament_name, results=results, last_updated=last_updated, cut_line=cut_line)
+    return render_template('player_standings.html', tournament_name=tournament_name, results=results, last_updated=last_updated, cut_line=cut_line, is_fallback=is_fallback)
 
 @app.route("/make_picks")
 def make_picks():
     # Get active tournament configuration
     active_config = get_active_tournament_config()
     tournament = active_config['TOURNAMENT_NAME'] if active_config else 'Tournament'
+    is_fallback = active_config.get('IS_FALLBACK', False) if active_config else False
     
     # Check cache first
     cached_data = get_cached('pick_options_data')
     if cached_data:
         first, second, third = cached_data
-        return render_template('pick_form.html', tournament_name=tournament, first=first, second=second, third=third)
+        return render_template('pick_form.html', tournament_name=tournament, first=first, second=second, third=third, is_fallback=is_fallback)
     
     session = get_snowpark_session()
     session.query_tag = os.getenv("SNOWFLAKE_QUERY_TAG")
@@ -271,7 +342,7 @@ def make_picks():
 
     # No longer closing session since we're reusing it
 
-    return render_template('pick_form.html', tournament_name=tournament, first=first, second=second, third=third)
+    return render_template('pick_form.html', tournament_name=tournament, first=first, second=second, third=third, is_fallback=is_fallback)
 
 @app.route("/submit_picks", methods=["POST"])
 def submit_picks():
