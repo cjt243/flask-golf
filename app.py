@@ -7,11 +7,10 @@ from snowflake.snowpark.functions import col
 import os
 import base64
 import time
-from functools import wraps
 try:
     from config import *
 except ModuleNotFoundError:
-    print('Deploying in prod environment.')
+    pass  # Using environment variables in production
 
 app = Flask(__name__) 
 Compress(app)
@@ -30,7 +29,6 @@ def get_cached(key):
     if key in _cache:
         data, timestamp = _cache[key]
         if time.time() - timestamp < CACHE_TTL:
-            print(f"⚡ Cache hit for {key}")
             return data
         else:
             del _cache[key]
@@ -39,7 +37,6 @@ def get_cached(key):
 def set_cache(key, data):
     """Set cached data with current timestamp"""
     _cache[key] = (data, time.time())
-    print(f"💾 Cached {key}")
 
 def get_snowpark_session():
     """Get or create a Snowpark session with caching"""
@@ -63,16 +60,7 @@ def get_snowpark_session():
     
     return _snowpark_session
 
-def timing_decorator(func):
-    """Decorator to time function execution"""
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        start_time = time.time()
-        result = func(*args, **kwargs)
-        end_time = time.time()
-        print(f"⏱️  {func.__name__} took {end_time - start_time:.2f} seconds")
-        return result
-    return wrapper
+
 
 def create_snowpark_session():
     from cryptography.hazmat.backends import default_backend
@@ -130,10 +118,7 @@ def create_snowpark_session():
     return session
 
 @app.route("/")
-@timing_decorator
 def leaderboard():
-    start_time = time.time()
-    
     # Check cache first
     cached_data = get_cached('leaderboard_data')
     if cached_data:
@@ -142,31 +127,22 @@ def leaderboard():
     
     session = get_snowpark_session()
     session.query_tag = os.getenv("SNOWFLAKE_QUERY_TAG")
-    print(f"⏱️  Session setup took {time.time() - start_time:.2f} seconds")
 
     # SQL query to select all columns from the leaderboard view
-    query_start = time.time()
     df = session.table('GOLF_LEAGUE.APPLICATION.LEADERBOARD_DISPLAY_DETAILED_VW').select("RANK","ENTRY_NAME","TOURNAMENT","TEAM_SCORE","PICKS").order_by('RANK')
     results = df.collect()
-    print(f"⏱️  Main leaderboard query took {time.time() - query_start:.2f} seconds")
     # Query to get the name of the active tournament
     # tournament_name = results[0]['TOURNAMENT'] if results else None
     tournament_name = 'PGA Championship'
     
-    # Debug: Check if Patrick Cantlay is in any picks
-    for result in results:
-        if 'Patrick Cantlay' in result['PICKS']:
-            print(f"DEBUG: Found Patrick Cantlay in {result['ENTRY_NAME']} picks: {result['PICKS']}")
-            break
+
     
     # Get the cut line value and player scores to determine missed cuts
     cut_line = None
     player_scores = {}
     try:
-        player_query_start = time.time()
         player_df = session.table('GOLF_LEAGUE.APPLICATION.PLAYER_FOCUSED_LEADERBOARD_VW').select('GOLFER', 'CUT_LINE', 'TOTAL_SCORE_INTEGER', 'PLAYER_STATUS', 'TOURNAMENT').filter(col('TOURNAMENT') == tournament_name)
         player_results = player_df.collect()
-        print(f"⏱️  Player data query took {time.time() - player_query_start:.2f} seconds")
         cut_line = player_results[0]['CUT_LINE'] if player_results else None
         
         # Create a dictionary of player scores and cut status
@@ -185,31 +161,14 @@ def leaderboard():
                     'score': player['TOTAL_SCORE_INTEGER'],
                     'status': player['PLAYER_STATUS']
                 }
-        
-        # Debug: Print some player data to see what we're getting
-        print(f"DEBUG: Cut line: {cut_line}")
-        print(f"DEBUG: Found {len(player_scores)} players")
-        if 'Patrick Cantlay' in player_scores:
-            print(f"DEBUG: Patrick Cantlay status: {player_scores['Patrick Cantlay']['status']}")
-        else:
-            # Check for similar names
-            cantlay_matches = [name for name in player_scores.keys() if 'cantlay' in name.lower()]
-            print(f"DEBUG: Cantlay name matches: {cantlay_matches}")
-            if cantlay_matches:
-                print(f"DEBUG: {cantlay_matches[0]} status: {player_scores[cantlay_matches[0]]['status']}")
-        
-        # Debug: Print all players with "cut" status
-        cut_players = [name for name, data in player_scores.items() if data['status'] and 'cut' in data['status'].lower()]
-        print(f"DEBUG: Players with cut status: {cut_players}")
+
     except:
         cut_line = None
         player_scores = {}
     
     # Get the latest timestamp from the leaderboard
-    timestamp_start = time.time()
     last_updated = session.table('GOLF_LEAGUE.APPLICATION.LATEST_LEADERBOARD_UPDATE_VW').select('LATEST_UPDATE','TOURNAMENT_NAME').filter(col('TOURNAMENT_NAME') == tournament_name).limit(1).collect()[0]['LATEST_UPDATE']
     last_updated = last_updated.replace(tzinfo=timezone('UTC')).astimezone(timezone('US/Eastern')).strftime('%A %B %d @ %I:%M %p %Z')
-    print(f"⏱️  Timestamp query took {time.time() - timestamp_start:.2f} seconds")
     
     # No longer closing session since we're reusing it
     
@@ -220,7 +179,6 @@ def leaderboard():
     return render_template('leaderboard.html', tournament_name=tournament_name, results=results, last_updated=last_updated, cut_line=cut_line, player_scores=player_scores)
 
 @app.route("/players")
-@timing_decorator
 def player_standings():
     # Check cache first
     cached_data = get_cached('player_standings_data')
@@ -232,13 +190,11 @@ def player_standings():
     session.query_tag = os.getenv("SNOWFLAKE_QUERY_TAG")
 
     # SQL query to select all columns from the new player focused leaderboard view
-    query_start = time.time()
     df = session.table('GOLF_LEAGUE.APPLICATION.PLAYER_FOCUSED_LEADERBOARD_VW').select(
         "TOURNAMENT", "POSITION", "THRU", "GOLFER", "ROUND_ID", "TOTAL_SCORE_INTEGER", 
         "CURRENT_ROUND_SCORE", "PLAYER_STATUS", "TEE_TIME", "SELECTIONS", "CUT_LINE"
     ).order_by('TOTAL_SCORE_INTEGER')
     results = df.collect()
-    print(f"⏱️  Player standings query took {time.time() - query_start:.2f} seconds")
 
     # Query to get the name of the active tournament
     tournament_name = results[0]['TOURNAMENT'] if results else None
@@ -247,10 +203,8 @@ def player_standings():
     cut_line = results[0]['CUT_LINE'] if results else None
     
     # Get the latest timestamp from the leaderboard
-    timestamp_start = time.time()
     last_updated = session.table('GOLF_LEAGUE.APPLICATION.LATEST_LEADERBOARD_UPDATE_VW').select('LATEST_UPDATE','TOURNAMENT_NAME').filter(col('TOURNAMENT_NAME') == tournament_name).limit(1).collect()[0]['LATEST_UPDATE']
     last_updated = last_updated.replace(tzinfo=timezone('UTC')).astimezone(timezone('US/Eastern')).strftime('%A %B %d @ %I:%M %p %Z')
-    print(f"⏱️  Timestamp query took {time.time() - timestamp_start:.2f} seconds")
     
     # No longer closing session since we're reusing it
     
@@ -261,7 +215,6 @@ def player_standings():
     return render_template('player_standings.html', tournament_name=tournament_name, results=results, last_updated=last_updated, cut_line=cut_line)
 
 @app.route("/make_picks")
-@timing_decorator
 def make_picks():
     tournament = 'U.S. Open'
     
@@ -274,10 +227,8 @@ def make_picks():
     session = get_snowpark_session()
     session.query_tag = os.getenv("SNOWFLAKE_QUERY_TAG")
 
-    query_start = time.time()
     pick_options_df = session.table('GOLF_LEAGUE.APPLICATION.PICK_OPTIONS_VW').to_pandas()
     pick_list = pick_options_df["PLAYER"].to_list()
-    print(f"⏱️  Pick options query took {time.time() - query_start:.2f} seconds")
 
     # create slicers to separate out the pick lists
     first = pick_list[0:5]
@@ -327,7 +278,7 @@ def submit_picks():
             return render_template('submit_success.html', tournament=tournament,entry_name=entry_name, golfers=[golfer_1, golfer_2, golfer_3, golfer_4, golfer_5]), 200
         except Exception as e:
             # No longer closing session since we're reusing it
-            return f"An error occurred: {e}", 500
+            return "An error occurred while submitting your picks. Please try again.", 500
     else:
         return "Validation Check Failed - please make sure you have 5 golfers selected and a valid entry name.", 400
 
@@ -336,9 +287,6 @@ def health_check():
     """Health check endpoint with performance metrics"""
     return {
         "status": "healthy",
-        "session_cached": _snowpark_session is not None,
-        "session_age_seconds": time.time() - _session_created_at if _session_created_at else None,
-        "cache_keys": list(_cache.keys()),
         "cache_count": len(_cache),
         "timestamp": time.time()
     }
@@ -351,4 +299,4 @@ def clear_cache():
     return {"status": "cache cleared", "timestamp": time.time()}
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run()
