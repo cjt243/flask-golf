@@ -229,7 +229,11 @@ def leaderboard():
     
     # Get active tournament configuration
     active_config = get_active_tournament_config()
-    tournament_name = active_config['TOURNAMENT_NAME'] if active_config else 'Tournament'
+    tournament_name = (
+        results[0]['TOURNAMENT']
+        if results
+        else (active_config['TOURNAMENT_NAME'] if active_config else 'Tournament')
+    )
     is_fallback = active_config.get('IS_FALLBACK', False) if active_config else False
     
 
