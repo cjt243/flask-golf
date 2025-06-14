@@ -1,4 +1,4 @@
-from pytz import timezone, utc
+from pytz import timezone
 from flask import Flask, render_template, request, redirect, url_for, g
 import pandas as pd
 from flask_compress import Compress
@@ -272,7 +272,7 @@ def leaderboard():
         latest_update_result = session.table('GOLF_LEAGUE.APPLICATION.LATEST_LEADERBOARD_UPDATE_VW').select('LATEST_UPDATE','TOURNAMENT_NAME').filter(col('TOURNAMENT_NAME') == tournament_name).limit(1).collect()
         if latest_update_result:
             last_updated = latest_update_result[0]['LATEST_UPDATE']
-            last_updated = utc.localize(last_updated).astimezone(timezone('US/Eastern')).strftime('%A %B %d @ %I:%M %p %Z')
+            last_updated = last_updated.replace(tzinfo=timezone('UTC')).astimezone(timezone('US/Eastern')).strftime('%A %B %d @ %I:%M %p %Z')
         else:
             # Fallback: get latest update from leaderboard table directly
             fallback_result = session.sql(f"""
@@ -283,7 +283,7 @@ def leaderboard():
             """).collect()
             if fallback_result and fallback_result[0]['LATEST_UPDATE']:
                 last_updated = fallback_result[0]['LATEST_UPDATE']
-                last_updated = utc.localize(last_updated).astimezone(timezone('US/Eastern')).strftime('%A %B %d @ %I:%M %p %Z')
+                last_updated = last_updated.replace(tzinfo=timezone('UTC')).astimezone(timezone('US/Eastern')).strftime('%A %B %d @ %I:%M %p %Z')
             else:
                 last_updated = "Data not available"
     except Exception as e:
@@ -329,7 +329,7 @@ def player_standings():
         latest_update_result = session.table('GOLF_LEAGUE.APPLICATION.LATEST_LEADERBOARD_UPDATE_VW').select('LATEST_UPDATE','TOURNAMENT_NAME').filter(col('TOURNAMENT_NAME') == tournament_name).limit(1).collect()
         if latest_update_result:
             last_updated = latest_update_result[0]['LATEST_UPDATE']
-            last_updated = utc.localize(last_updated).astimezone(timezone('US/Eastern')).strftime('%A %B %d @ %I:%M %p %Z')
+            last_updated = last_updated.replace(tzinfo=timezone('UTC')).astimezone(timezone('US/Eastern')).strftime('%A %B %d @ %I:%M %p %Z')
         else:
             # Fallback: get latest update from leaderboard table directly
             fallback_result = session.sql(f"""
@@ -340,7 +340,7 @@ def player_standings():
             """).collect()
             if fallback_result and fallback_result[0]['LATEST_UPDATE']:
                 last_updated = fallback_result[0]['LATEST_UPDATE']
-                last_updated = utc.localize(last_updated).astimezone(timezone('US/Eastern')).strftime('%A %B %d @ %I:%M %p %Z')
+                last_updated = last_updated.replace(tzinfo=timezone('UTC')).astimezone(timezone('US/Eastern')).strftime('%A %B %d @ %I:%M %p %Z')
             else:
                 last_updated = "Data not available"
     except Exception as e:
