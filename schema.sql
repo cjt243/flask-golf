@@ -117,6 +117,19 @@ CREATE INDEX IF NOT EXISTS idx_security_events_user ON security_events(user_id);
 CREATE INDEX IF NOT EXISTS idx_security_events_ip ON security_events(ip_address);
 CREATE INDEX IF NOT EXISTS idx_security_events_time ON security_events(created_at);
 
+-- Access requests (invite-only workflow)
+CREATE TABLE IF NOT EXISTS access_requests (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    email TEXT UNIQUE NOT NULL,
+    display_name TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',  -- 'pending', 'approved', 'rejected'
+    reviewed_by TEXT REFERENCES users(id),
+    reviewed_at TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_access_requests_status ON access_requests(status);
+CREATE INDEX IF NOT EXISTS idx_access_requests_email ON access_requests(email);
+
 -- Failed login tracking
 CREATE TABLE IF NOT EXISTS failed_logins (
     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),

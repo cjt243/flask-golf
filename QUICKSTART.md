@@ -42,14 +42,18 @@ ADMIN_EMAILS=user@example.com
 ### Local Development
 
 - **Python**: 3.12 (installed in `.venv/`)
+- **Package runner**: [uv](https://docs.astral.sh/uv/) — use `uv run` to execute commands within the venv
 - **Database**: Turso hosted libSQL (same instance as production, or `file:local.db` for offline)
 - **Server**: Flask dev server with debug mode (`python app.py`)
 - **Email**: Set `RESEND_API_KEY` to send real emails, or omit it to print magic links to console
-- **Run with**: `PYTHONUNBUFFERED=1 python app.py` (unbuffered so magic links print immediately)
+- **Run with**: `PYTHONUNBUFFERED=1 uv run python app.py` (unbuffered so magic links print immediately)
 
 ```bash
-source .venv/bin/activate
-PYTHONUNBUFFERED=1 python app.py
+# Install dependencies
+uv pip install -r requirements.txt
+
+# Run dev server
+PYTHONUNBUFFERED=1 uv run python app.py
 # App runs on http://127.0.0.1:5000
 ```
 
@@ -85,9 +89,10 @@ PYTHONUNBUFFERED=1 python app.py
 
 | Task | Command / Action |
 |------|-----------------|
-| Run locally | `PYTHONUNBUFFERED=1 python app.py` |
-| Initialize DB | `flask init-db` |
-| Clean expired sessions | `flask cleanup-sessions` |
+| Run locally | `PYTHONUNBUFFERED=1 uv run python app.py` |
+| Initialize DB | `uv run flask init-db` |
+| Clean expired sessions | `uv run flask cleanup-sessions` |
+| Install dependencies | `uv pip install -r requirements.txt` |
 | Refresh golfer scores | Admin panel -> "Refresh Golfers" button |
 | Activate a tournament | Admin panel -> "Activate" button |
 | Check app health | `GET /health` |

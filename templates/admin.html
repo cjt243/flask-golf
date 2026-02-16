@@ -55,6 +55,52 @@
             </div>
         </div>
 
+        <!-- Pending Access Requests -->
+        {% if access_requests %}
+        <section class="mb-10">
+            <h2 class="text-xl font-semibold mb-4 text-white">Pending Access Requests</h2>
+            <div class="bg-gray-800 rounded-lg border border-yellow-600 overflow-hidden">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-700/50">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-medium text-gray-300">Name</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-300">Email</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-300">Requested</th>
+                            <th class="px-4 py-3 text-right font-medium text-gray-300">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-700">
+                        {% for req in access_requests %}
+                        <tr class="hover:bg-gray-700/30">
+                            <td class="px-4 py-3 font-medium text-white">{{ req.display_name }}</td>
+                            <td class="px-4 py-3 text-gray-400">{{ req.email }}</td>
+                            <td class="px-4 py-3 text-gray-400">{{ req.created_at }}</td>
+                            <td class="px-4 py-3 text-right">
+                                <div class="flex items-center justify-end space-x-2">
+                                    <form action="/admin/approve-user" method="POST" class="inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <input type="hidden" name="request_id" value="{{ req.id }}">
+                                        <button type="submit" class="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-500 text-white rounded transition-colors">
+                                            Approve
+                                        </button>
+                                    </form>
+                                    <form action="/admin/reject-user" method="POST" class="inline" onsubmit="return confirm('Reject access request from {{ req.display_name }}?')">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <input type="hidden" name="request_id" value="{{ req.id }}">
+                                        <button type="submit" class="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-500 text-white rounded transition-colors">
+                                            Reject
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        {% endif %}
+
         <!-- Existing Tournaments -->
         <section class="mb-10">
             <h2 class="text-xl font-semibold mb-4 text-white">Your Tournaments</h2>
@@ -160,8 +206,6 @@
                             <th class="px-4 py-3 text-left font-medium text-gray-300">Tournament</th>
                             <th class="px-4 py-3 text-left font-medium text-gray-300">ID</th>
                             <th class="px-4 py-3 text-left font-medium text-gray-300">Dates</th>
-                            <th class="px-4 py-3 text-left font-medium text-gray-300">Location</th>
-                            <th class="px-4 py-3 text-left font-medium text-gray-300">Purse</th>
                             <th class="px-4 py-3 text-right font-medium text-gray-300">Action</th>
                         </tr>
                     </thead>
@@ -171,19 +215,14 @@
                             <td class="px-4 py-3 font-medium text-white">{{ event.name }}</td>
                             <td class="px-4 py-3 text-gray-400 font-mono text-xs">{{ event.tournId }}</td>
                             <td class="px-4 py-3 text-gray-400">
-                                {% if event.startDate %}
-                                {{ event.startDate[:10] }} - {{ event.endDate[:10] if event.endDate else '' }}
+                                {% if event.start_date != 'TBD' %}
+                                {{ event.start_date }} - {{ event.end_date }}
                                 {% else %}
                                 TBD
                                 {% endif %}
                             </td>
-                            <td class="px-4 py-3 text-gray-400">
-                                {% if event.city %}{{ event.city }}, {% endif %}{{ event.state or event.country or '' }}
-                            </td>
-                            <td class="px-4 py-3 text-gray-400">
-                                {% if event.purse %}${{ "{:,.0f}".format(event.purse|float) }}{% endif %}
-                            </td>
                             <td class="px-4 py-3 text-right">
+                                {% if event.is_future %}
                                 <form action="/admin/create-tournament" method="POST" class="inline">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <input type="hidden" name="external_id" value="{{ event.tournId }}">
@@ -193,6 +232,7 @@
                                         Create
                                     </button>
                                 </form>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}

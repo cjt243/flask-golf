@@ -207,20 +207,17 @@ For local development, env vars live in `.env` at the project root (gitignored).
 ## Development Setup
 
 ```bash
-# Activate virtual environment
-source .venv/bin/activate
+# Install dependencies (uses uv with existing .venv)
+uv pip install -r requirements.txt
 
-# Install dependencies
-pip install -r requirements.txt
-
-# Create config.py with credentials (gitignored)
+# Create .env with credentials (gitignored)
 # Set TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, GOLF_API_KEY, FLASK_SECRET_KEY
 
 # Initialize database (only needed for new databases)
-flask init-db
+uv run flask init-db
 
 # Run dev server
-PYTHONUNBUFFERED=1 python app.py
+PYTHONUNBUFFERED=1 uv run python app.py
 # Magic links print to console if RESEND_API_KEY is not set
 ```
 
@@ -275,6 +272,7 @@ No linting or formatting tools are configured. There is no `pyproject.toml`, `.f
 - Multi-season archive view (schema supports it via `season_year`, but UI only shows active tournament)
 - Improve email templates (currently inline HTML in `send_magic_link()`)
 - `submit_success.html` lacks the auth nav bar (sign in/out) unlike other templates
+- Add "Admin" link to nav bar for admin users (currently must navigate to `/admin` directly)
 - Add `display_name` support in UI (users table has the column, but it's never set or shown)
 - Consider moving from in-memory cache to something persistent across gunicorn workers
 - Add CI/CD pipeline

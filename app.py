@@ -41,7 +41,7 @@ app.config.update(
     SESSION_COOKIE_SECURE=not app.debug,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
-    SESSION_COOKIE_NAME='golf_session',
+    SESSION_COOKIE_NAME='golf_flask_session',
 )
 
 # Constants
@@ -55,6 +55,7 @@ RATE_LIMITS = {
     'magic_link_per_email': {'max': 3, 'window_minutes': 60},
     'magic_link_per_ip': {'max': 10, 'window_minutes': 60},
     'failed_verifications_per_ip': {'max': 5, 'window_minutes': 15},
+    'access_request_per_ip': {'max': 5, 'window_minutes': 60},
 }
 
 # Argon2 password hasher
@@ -433,6 +434,87 @@ def send_magic_link(email, token):
         return True
     except Exception as e:
         print(f"Error sending email: {e}")
+        return False
+
+
+def send_admin_notification(requester_name, requester_email):
+    """Notify admin(s) about a new access request via Resend."""
+    api_key = os.getenv('RESEND_API_KEY')
+    email_from = os.getenv('EMAIL_FROM', 'picks@updates.cullin.link')
+    admin_emails = [e.strip() for e in ADMIN_EMAILS if e.strip()]
+
+    if not admin_emails:
+        print(f"\n{'='*50}")
+        print(f"ACCESS REQUEST from {requester_name} ({requester_email})")
+        print(f"No admin emails configured to notify.")
+        print(f"{'='*50}\n")
+        return
+
+    if not api_key:
+        print(f"\n{'='*50}")
+        print(f"ACCESS REQUEST from {requester_name} ({requester_email})")
+        print(f"Would notify: {', '.join(admin_emails)}")
+        print(f"{'='*50}\n")
+        return
+
+    resend.api_key = api_key
+
+    for admin_email in admin_emails:
+        try:
+            resend.Emails.send({
+                "from": email_from,
+                "to": admin_email,
+                "subject": f"New Access Request: {requester_name}",
+                "html": f"""
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #16a34a;">New Access Request</h2>
+                    <p><strong>{requester_name}</strong> ({requester_email}) has requested access to the 80 Yard Bombs Cup.</p>
+                    <a href="{request.host_url}admin"
+                       style="display: inline-block; background: #16a34a; color: white; padding: 12px 24px;
+                              text-decoration: none; border-radius: 8px; margin: 16px 0;">
+                        Review Request
+                    </a>
+                </div>
+                """
+            })
+        except Exception as e:
+            print(f"Error sending admin notification to {admin_email}: {e}")
+
+
+def send_approval_email(email, name):
+    """Send approval notification to user via Resend."""
+    api_key = os.getenv('RESEND_API_KEY')
+    email_from = os.getenv('EMAIL_FROM', 'picks@updates.cullin.link')
+
+    if not api_key:
+        print(f"\n{'='*50}")
+        print(f"APPROVAL EMAIL for {name} ({email})")
+        print(f"Sign in at: {request.host_url}auth/login")
+        print(f"{'='*50}\n")
+        return True
+
+    resend.api_key = api_key
+
+    try:
+        resend.Emails.send({
+            "from": email_from,
+            "to": email,
+            "subject": "You've been approved - 80 Yard Bombs Cup",
+            "html": f"""
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #16a34a;">Welcome to the 80 Yard Bombs Cup!</h2>
+                <p>Hi {name}, your access request has been approved. You can now sign in and start making picks.</p>
+                <a href="{request.host_url}auth/login"
+                   style="display: inline-block; background: #16a34a; color: white; padding: 12px 24px;
+                          text-decoration: none; border-radius: 8px; margin: 16px 0;">
+                    Sign In
+                </a>
+            </div>
+            """
+        })
+        return True
+    except Exception as e:
+        print(f"Error sending approval email: {e}")
         return False
 
 
@@ -841,12 +923,18 @@ def auth_request_link():
         log_security_event('rate_limited', request, email=email, details={'action': 'magic_link_per_ip'})
         return render_template('check_email.html', email=email)
 
+    # Only send magic link if user exists (silent rejection for unregistered emails)
+    db = get_db()
+    existing_user = db.execute("SELECT id FROM users WHERE email = ?", [email]).fetchone()
+    if not existing_user:
+        log_security_event('magic_link_rejected', request, email=email, details={'reason': 'unregistered_email'})
+        return render_template('check_email.html', email=email)
+
     # Generate token
     raw_token = secrets.token_urlsafe(32)
     token_hash = ph.hash(raw_token)
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=MAGIC_LINK_EXPIRY_MINUTES)
 
-    db = get_db()
     db.execute("""
         INSERT INTO auth_tokens (id, email, token_hash, expires_at)
         VALUES (lower(hex(randomblob(16))), ?, ?, ?)
@@ -915,17 +1003,12 @@ def auth_verify():
     # Get or create user
     user = db.execute("SELECT id, email, is_admin FROM users WHERE email = ?", [email]).fetchone()
 
-    if user:
-        user_id = user[0]
-        db.execute("UPDATE users SET last_login_at = datetime('now') WHERE id = ?", [user_id])
-    else:
-        is_admin = 1 if email in ADMIN_EMAILS else 0
-        db.execute("""
-            INSERT INTO users (id, email, is_admin, last_login_at)
-            VALUES (lower(hex(randomblob(16))), ?, ?, datetime('now'))
-        """, [email, is_admin])
-        user_id = db.execute("SELECT id FROM users WHERE email = ?", [email]).fetchone()[0]
+    if not user:
+        log_security_event('failed_login', request, email=email, details={'reason': 'account_not_approved'})
+        return render_template('error.html', message='Your account is not yet approved. Please wait for admin approval.')
 
+    user_id = user[0]
+    db.execute("UPDATE users SET last_login_at = datetime('now') WHERE id = ?", [user_id])
     db.commit()
 
     # Create session
@@ -955,9 +1038,65 @@ def auth_logout():
         db.commit()
         log_security_event('logout', request, user_id=g.user['id'])
 
-    response = make_response(redirect(url_for('leaderboard')))
+    response = make_response(redirect(url_for('auth_login')))
     response.delete_cookie('golf_session')
     return response
+
+
+@app.route('/auth/request-access')
+def auth_request_access():
+    """Request access form."""
+    if g.user:
+        return redirect(url_for('leaderboard'))
+    return render_template('request_access.html')
+
+
+@app.route('/auth/submit-access-request', methods=['POST'])
+@csrf_required
+def auth_submit_access_request():
+    """Submit access request."""
+    email = validate_user_email(request.form.get('email', ''))
+    display_name = request.form.get('display_name', '').strip()
+
+    if not email:
+        return render_template('request_access.html', error='Please enter a valid email address.')
+
+    if not display_name or len(display_name) > 100:
+        return render_template('request_access.html', error='Please enter a valid name (1-100 characters).')
+
+    # Basic sanitization
+    display_name = html.escape(display_name)
+
+    client_ip = get_client_ip()
+
+    # Rate limit
+    if not check_rate_limit(client_ip, 'access_request_per_ip'):
+        log_security_event('rate_limited', request, email=email, details={'action': 'access_request_per_ip'})
+        return render_template('access_requested.html')
+
+    db = get_db()
+
+    # Silently succeed if email already exists in users or access_requests
+    existing_user = db.execute("SELECT id FROM users WHERE email = ?", [email]).fetchone()
+    existing_request = db.execute("SELECT id FROM access_requests WHERE email = ?", [email]).fetchone()
+
+    if existing_user or existing_request:
+        return render_template('access_requested.html')
+
+    # Insert access request
+    try:
+        db.execute("""
+            INSERT INTO access_requests (id, email, display_name)
+            VALUES (lower(hex(randomblob(16))), ?, ?)
+        """, [email, display_name])
+        db.commit()
+
+        log_security_event('access_requested', request, email=email, details={'name': display_name})
+        send_admin_notification(display_name, email)
+    except Exception as e:
+        print(f"Error creating access request: {e}")
+
+    return render_template('access_requested.html')
 
 
 # =============================================================================
@@ -965,6 +1104,7 @@ def auth_logout():
 # =============================================================================
 
 @app.route('/')
+@login_required
 def leaderboard():
     """Main leaderboard page."""
     tournament = get_active_tournament()
@@ -1031,6 +1171,7 @@ def leaderboard():
 
 
 @app.route('/players')
+@login_required
 def player_standings():
     """Player standings page."""
     tournament = get_active_tournament()
@@ -1280,12 +1421,51 @@ def admin_dashboard():
         'golfer_count': t[7]
     } for t in tournaments]
 
-    # Fetch schedule from API
+    # Fetch schedule from API and transform for display
     year = int(request.args.get('year', datetime.now().year))
     org_id = request.args.get('org', '1')
-    schedule = fetch_tournament_schedule(year, org_id) or []
+    raw_schedule = fetch_tournament_schedule(year, org_id) or []
+    now = datetime.now(timezone.utc)
+
+    schedule = []
+    for event in raw_schedule:
+        # Parse MongoDB-style date fields
+        start_date = None
+        end_date = None
+        try:
+            date_obj = event.get('date', {})
+            start_ms = date_obj.get('start', {}).get('$date', {}).get('$numberLong')
+            end_ms = date_obj.get('end', {}).get('$date', {}).get('$numberLong')
+            if start_ms:
+                start_date = datetime.fromtimestamp(int(start_ms) / 1000, tz=timezone.utc)
+            if end_ms:
+                end_date = datetime.fromtimestamp(int(end_ms) / 1000, tz=timezone.utc)
+        except (TypeError, ValueError):
+            pass
+
+        schedule.append({
+            'tournId': event.get('tournId', ''),
+            'name': event.get('name', ''),
+            'start_date': start_date.strftime('%b %d') if start_date else 'TBD',
+            'end_date': end_date.strftime('%b %d, %Y') if end_date else '',
+            'is_future': start_date > now if start_date else False,
+        })
 
     api_connected = bool(os.getenv('GOLF_API_KEY'))
+
+    # Fetch pending access requests
+    pending_requests = db.execute("""
+        SELECT id, email, display_name, created_at
+        FROM access_requests WHERE status = 'pending'
+        ORDER BY created_at ASC
+    """).fetchall()
+
+    access_requests = [{
+        'id': r[0],
+        'email': r[1],
+        'display_name': r[2],
+        'created_at': r[3]
+    } for r in pending_requests]
 
     return render_template('admin.html',
                          tournaments=tournament_list,
@@ -1293,6 +1473,7 @@ def admin_dashboard():
                          year=year,
                          org_id=org_id,
                          api_connected=api_connected,
+                         access_requests=access_requests,
                          user=g.user)
 
 
@@ -1406,6 +1587,77 @@ def admin_delete_tournament():
 
     # Clear caches
     _cache.clear()
+
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/approve-user', methods=['POST'])
+@admin_required
+@csrf_required
+def admin_approve_user():
+    """Approve an access request and create user."""
+    request_id = request.form.get('request_id')
+
+    if not request_id:
+        return redirect(url_for('admin_dashboard'))
+
+    db = get_db()
+    access_req = db.execute("""
+        SELECT id, email, display_name, status
+        FROM access_requests WHERE id = ?
+    """, [request_id]).fetchone()
+
+    if not access_req or access_req[3] != 'pending':
+        return redirect(url_for('admin_dashboard'))
+
+    email = access_req[1]
+    display_name = access_req[2]
+
+    # Create user
+    is_admin = 1 if email in ADMIN_EMAILS else 0
+    db.execute("""
+        INSERT INTO users (id, email, display_name, is_admin)
+        VALUES (lower(hex(randomblob(16))), ?, ?, ?)
+    """, [email, display_name, is_admin])
+
+    # Update access request
+    db.execute("""
+        UPDATE access_requests SET status = 'approved', reviewed_by = ?, reviewed_at = datetime('now')
+        WHERE id = ?
+    """, [g.user['id'], request_id])
+    db.commit()
+
+    log_security_event('access_approved', request, user_id=g.user['id'], email=email)
+    send_approval_email(email, display_name)
+
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/reject-user', methods=['POST'])
+@admin_required
+@csrf_required
+def admin_reject_user():
+    """Reject an access request."""
+    request_id = request.form.get('request_id')
+
+    if not request_id:
+        return redirect(url_for('admin_dashboard'))
+
+    db = get_db()
+    access_req = db.execute("""
+        SELECT id, email, status FROM access_requests WHERE id = ?
+    """, [request_id]).fetchone()
+
+    if not access_req or access_req[2] != 'pending':
+        return redirect(url_for('admin_dashboard'))
+
+    db.execute("""
+        UPDATE access_requests SET status = 'rejected', reviewed_by = ?, reviewed_at = datetime('now')
+        WHERE id = ?
+    """, [g.user['id'], request_id])
+    db.commit()
+
+    log_security_event('access_rejected', request, user_id=g.user['id'], email=access_req[1])
 
     return redirect(url_for('admin_dashboard'))
 
