@@ -362,7 +362,7 @@ _Update this section after completing each phase._
 | Phase 1 — P0 Bugs & Security | **Complete** | 2026-02-16 | Secured /clear_cache, fixed Procfile, fail-fast secret key, fixed bare excepts, removed pandas/numpy |
 | Phase 1.5 — User Names & Entry Name | **Complete** | 2026-02-16 | Split display_name into first/last, updated access form, approval flow, leaderboard shows "First L.", pick form relabeled |
 | Phase 2 — Operational Basics | **Complete** | 2026-02-16 | Replaced all print() with logging, migration system (done in 1.5), probabilistic session cleanup, /api/auto-refresh endpoint, favicon route |
-| Phase 3 — UI/UX Refresh | **In Progress** | 2026-02-16 | Items 19-20 done: base.html created, all 10 templates refactored (-719 lines), unified nav/footer. Next: typography, color palette, page-specific improvements |
+| Phase 3 — UI/UX Refresh | **Complete** | 2026-02-16 | base.html + refactor (-719 lines), DM Serif Display + DM Sans typography, turf-green gradient + card-glow theme, leaderboard score formatting + auto-expand desktop + player scores in chips, pick form confirmation dialog + double-submit fix + prominent warning, admin Delete button separated |
 | Phase 4 — Testing | Not started | | |
 | Phase 5 — Monitoring | Not started | | |
 | Phase 6 — Merge & Deploy | Not started | | |
