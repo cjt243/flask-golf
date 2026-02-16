@@ -26,7 +26,7 @@ services:
     type: SECRET
   - key: EMAIL_FROM
     scope: RUN_TIME
-    value: "picks@yourdomain.com"
+    value: "picks@updates.cullin.link"
   # Golf API (Slash Golf via RapidAPI)
   - key: GOLF_API_KEY
     scope: RUN_TIME
