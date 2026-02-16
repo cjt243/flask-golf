@@ -8,6 +8,8 @@ import re
 import json
 import html
 import time
+import random
+import logging
 import secrets
 import hashlib
 from datetime import datetime, timedelta, timezone
@@ -50,6 +52,14 @@ app.config.update(
     SESSION_COOKIE_SAMESITE='Lax',
     SESSION_COOKIE_NAME='golf_flask_session',
 )
+
+# Logging
+logging.basicConfig(
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    level=logging.INFO,
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger('flask_golf')
 
 # Constants
 CACHE_TTL = 300  # 5 minutes
@@ -146,12 +156,12 @@ def _run_migrations(db):
     for sql, description in migrations:
         try:
             db.execute(sql)
-            print(f"Migration applied: {description}")
+            logger.info(f"Migration applied: {description}")
         except Exception as e:
             if "duplicate column" in str(e).lower() or "already exists" in str(e).lower():
                 pass  # Column already exists, skip
             else:
-                print(f"Migration warning ({description}): {e}")
+                logger.warning(f"Migration skipped ({description}): {e}")
     db.commit()
 
     # Backfill: parse existing display_name into first_name + last_name where not yet set
@@ -176,7 +186,7 @@ def _run_migrations(db):
 
         db.commit()
     except Exception as e:
-        print(f"Backfill warning: {e}")
+        logger.warning(f"Backfill warning: {e}")
 
 
 # =============================================================================
@@ -271,6 +281,16 @@ def load_user():
                     [result[0]]
                 )
                 db.commit()
+
+                # Probabilistic cleanup: ~1% of requests clean expired sessions/tokens
+                if random.random() < 0.01:
+                    try:
+                        db.execute("DELETE FROM sessions WHERE expires_at < datetime('now')")
+                        db.execute("DELETE FROM auth_tokens WHERE expires_at < datetime('now')")
+                        db.commit()
+                        logger.info("Probabilistic session cleanup ran")
+                    except Exception:
+                        pass
 
 
 # =============================================================================
@@ -388,7 +408,7 @@ def log_security_event(event_type, req, user_id=None, email=None, details=None):
         ])
         db.commit()
     except Exception as e:
-        print(f"Error logging security event: {e}")
+        logger.error(f"Error logging security event: {e}")
 
 
 # =============================================================================
@@ -472,10 +492,7 @@ def send_magic_link(email, token):
 
     if not api_key:
         # Development mode - print to console
-        print(f"\n{'='*50}")
-        print(f"MAGIC LINK for {email}:")
-        print(f"{request.host_url}auth/verify?token={token}&email={email}")
-        print(f"{'='*50}\n")
+        logger.info(f"MAGIC LINK for {email}: {request.host_url}auth/verify?token={token}&email={email}")
         return True
 
     resend.api_key = api_key
@@ -502,7 +519,7 @@ def send_magic_link(email, token):
         })
         return True
     except Exception as e:
-        print(f"Error sending email: {e}")
+        logger.error(f"Error sending email: {e}")
         return False
 
 
@@ -513,17 +530,11 @@ def send_admin_notification(requester_name, requester_email):
     admin_emails = [e.strip() for e in ADMIN_EMAILS if e.strip()]
 
     if not admin_emails:
-        print(f"\n{'='*50}")
-        print(f"ACCESS REQUEST from {requester_name} ({requester_email})")
-        print(f"No admin emails configured to notify.")
-        print(f"{'='*50}\n")
+        logger.info(f"ACCESS REQUEST from {requester_name} ({requester_email}) — no admin emails configured")
         return
 
     if not api_key:
-        print(f"\n{'='*50}")
-        print(f"ACCESS REQUEST from {requester_name} ({requester_email})")
-        print(f"Would notify: {', '.join(admin_emails)}")
-        print(f"{'='*50}\n")
+        logger.info(f"ACCESS REQUEST from {requester_name} ({requester_email}) — would notify: {', '.join(admin_emails)}")
         return
 
     resend.api_key = api_key
@@ -547,7 +558,7 @@ def send_admin_notification(requester_name, requester_email):
                 """
             })
         except Exception as e:
-            print(f"Error sending admin notification to {admin_email}: {e}")
+            logger.error(f"Error sending admin notification to {admin_email}: {e}")
 
 
 def send_approval_email(email, name):
@@ -556,10 +567,7 @@ def send_approval_email(email, name):
     email_from = os.getenv('EMAIL_FROM', 'picks@updates.cullin.link')
 
     if not api_key:
-        print(f"\n{'='*50}")
-        print(f"APPROVAL EMAIL for {name} ({email})")
-        print(f"Sign in at: {request.host_url}auth/login")
-        print(f"{'='*50}\n")
+        logger.info(f"APPROVAL EMAIL for {name} ({email}) — sign in at: {request.host_url}auth/login")
         return True
 
     resend.api_key = api_key
@@ -583,7 +591,7 @@ def send_approval_email(email, name):
         })
         return True
     except Exception as e:
-        print(f"Error sending approval email: {e}")
+        logger.error(f"Error sending approval email: {e}")
         return False
 
 
@@ -793,7 +801,7 @@ def fetch_tournament_schedule(year, org_id='1'):
         # API returns dict with 'schedule' key containing list of tournaments
         return data.get('schedule', data) if isinstance(data, dict) else data
     except Exception as e:
-        print(f"Error fetching schedule: {e}")
+        logger.error(f"Error fetching schedule: {e}")
         return None
 
 
@@ -816,7 +824,7 @@ def fetch_leaderboard(tournament_external_id, year=None):
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
-        print(f"Error fetching leaderboard: {e}")
+        logger.error(f"Error fetching leaderboard: {e}")
         return None
 
 
@@ -839,7 +847,7 @@ def fetch_tournament_field(tournament_external_id, year=None):
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
-        print(f"Error fetching tournament field: {e}")
+        logger.error(f"Error fetching tournament field: {e}")
         return None
 
 
@@ -1188,7 +1196,7 @@ def auth_submit_access_request():
         log_security_event('access_requested', request, email=email, details={'name': display_name})
         send_admin_notification(display_name, email)
     except Exception as e:
-        print(f"Error creating access request: {e}")
+        logger.error(f"Error creating access request: {e}")
 
     return render_template('access_requested.html')
 
@@ -1483,7 +1491,7 @@ def submit_picks():
                              entry_name=entry_name,
                              golfers=selected)
     except Exception as e:
-        print(f"Error submitting picks: {e}")
+        logger.error(f"Error submitting picks: {e}")
         return render_template('error.html', message='An error occurred. Please try again.'), 500
 
 
@@ -1596,7 +1604,7 @@ def admin_create_tournament():
         """, [external_id, name, int(season_year)])
         db.commit()
     except Exception as e:
-        print(f"Error creating tournament: {e}")
+        logger.error(f"Error creating tournament: {e}")
 
     return redirect(url_for('admin_dashboard'))
 
@@ -1799,6 +1807,58 @@ def clear_cache():
     return {'status': 'cache cleared', 'timestamp': time.time()}
 
 
+@app.route('/api/auto-refresh', methods=['POST'])
+def auto_refresh_golfers():
+    """Protected endpoint for automated golfer score refresh.
+
+    Authenticate via X-API-Key header matching GOLF_API_KEY,
+    or via normal admin session. Designed to be called by
+    external cron/scheduler (e.g., DO scheduled function, UptimeRobot).
+    """
+    # Auth: API key or admin session
+    api_key = request.headers.get('X-API-Key')
+    expected_key = os.getenv('GOLF_API_KEY')
+
+    is_api_auth = api_key and expected_key and secrets.compare_digest(api_key, expected_key)
+    is_admin_auth = g.user and g.user.get('is_admin')
+
+    if not is_api_auth and not is_admin_auth:
+        return {'error': 'unauthorized'}, 401
+
+    db = get_db()
+    tournament = db.execute(
+        "SELECT id, external_id, season_year FROM tournaments WHERE is_active = 1"
+    ).fetchone()
+
+    if not tournament:
+        return {'status': 'no_active_tournament'}, 200
+
+    tournament_id, external_id, year = tournament[0], tournament[1], tournament[2]
+    success = refresh_golfers_from_api(tournament_id, external_id, year)
+
+    if success:
+        _cache.pop(f'leaderboard_{tournament_id}', None)
+        _cache.pop(f'players_{tournament_id}', None)
+        logger.info(f"Auto-refresh completed for tournament {external_id}")
+
+    return {
+        'status': 'refreshed' if success else 'api_error',
+        'tournament_id': tournament_id,
+        'timestamp': time.time()
+    }, 200 if success else 502
+
+
+@app.route('/favicon.ico')
+def favicon():
+    """Serve favicon to prevent 404s on every page load."""
+    svg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50">
+        <text y="42" font-size="42">&#x1F3C6;</text></svg>'''
+    response = make_response(svg)
+    response.headers['Content-Type'] = 'image/svg+xml'
+    response.headers['Cache-Control'] = 'public, max-age=604800'
+    return response
+
+
 # =============================================================================
 # Error Handlers
 # =============================================================================
@@ -1826,7 +1886,7 @@ def server_error(e):
 def init_db_command():
     """Initialize the database."""
     init_db()
-    print('Database initialized.')
+    logger.info('Database initialized.')
 
 
 @app.cli.command('cleanup-sessions')
@@ -1836,7 +1896,7 @@ def cleanup_sessions_command():
     db.execute("DELETE FROM sessions WHERE expires_at < datetime('now')")
     db.execute("DELETE FROM auth_tokens WHERE expires_at < datetime('now')")
     db.commit()
-    print('Expired sessions and tokens cleaned up.')
+    logger.info('Expired sessions and tokens cleaned up.')
 
 
 # =============================================================================
