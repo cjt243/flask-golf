@@ -219,7 +219,12 @@
                         <h3 class="font-semibold text-base sm:text-lg text-gray-100 group-hover:text-white transition-colors truncate" title="{{ row.ENTRY_NAME }}">
                             {{ row.ENTRY_NAME }}
                         </h3>
-                        <div class="text-xs text-gray-400 sm:hidden mt-1">
+                        {% if row.OWNER_NAME %}
+                        <div class="text-xs text-gray-400 mt-0.5">
+                            {{ row.OWNER_NAME }}
+                        </div>
+                        {% endif %}
+                        <div class="text-xs text-gray-500 sm:hidden mt-0.5">
                             Tap to see players
                         </div>
                     </div>

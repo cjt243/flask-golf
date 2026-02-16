@@ -131,6 +131,52 @@ def init_db():
     with open('schema.sql', 'r') as f:
         db.executescript(f.read())
     db.commit()
+    _run_migrations(db)
+
+
+def _run_migrations(db):
+    """Run schema migrations that ALTER TABLE can't handle via IF NOT EXISTS."""
+    migrations = [
+        # Phase 1.5: Split display_name into first_name + last_name
+        ("ALTER TABLE users ADD COLUMN first_name TEXT", "users.first_name"),
+        ("ALTER TABLE users ADD COLUMN last_name TEXT", "users.last_name"),
+        ("ALTER TABLE access_requests ADD COLUMN first_name TEXT", "access_requests.first_name"),
+        ("ALTER TABLE access_requests ADD COLUMN last_name TEXT", "access_requests.last_name"),
+    ]
+    for sql, description in migrations:
+        try:
+            db.execute(sql)
+            print(f"Migration applied: {description}")
+        except Exception as e:
+            if "duplicate column" in str(e).lower() or "already exists" in str(e).lower():
+                pass  # Column already exists, skip
+            else:
+                print(f"Migration warning ({description}): {e}")
+    db.commit()
+
+    # Backfill: parse existing display_name into first_name + last_name where not yet set
+    try:
+        rows = db.execute(
+            "SELECT id, display_name FROM users WHERE display_name IS NOT NULL AND first_name IS NULL"
+        ).fetchall()
+        for row in rows:
+            parts = row[1].strip().split(None, 1)
+            first = parts[0] if parts else ''
+            last = parts[1] if len(parts) > 1 else ''
+            db.execute("UPDATE users SET first_name = ?, last_name = ? WHERE id = ?", [first, last, row[0]])
+
+        rows = db.execute(
+            "SELECT id, display_name FROM access_requests WHERE display_name IS NOT NULL AND first_name IS NULL"
+        ).fetchall()
+        for row in rows:
+            parts = row[1].strip().split(None, 1)
+            first = parts[0] if parts else ''
+            last = parts[1] if len(parts) > 1 else ''
+            db.execute("UPDATE access_requests SET first_name = ?, last_name = ? WHERE id = ?", [first, last, row[0]])
+
+        db.commit()
+    except Exception as e:
+        print(f"Backfill warning: {e}")
 
 
 # =============================================================================
@@ -200,7 +246,8 @@ def load_user():
         token_hash = hashlib.sha256(session_token.encode()).hexdigest()
 
         result = db.execute("""
-            SELECT s.id, s.user_id, s.expires_at, u.email, u.display_name, u.is_admin
+            SELECT s.id, s.user_id, s.expires_at, u.email, u.display_name, u.is_admin,
+                   u.first_name, u.last_name
             FROM sessions s
             JOIN users u ON s.user_id = u.id
             WHERE s.session_token_hash = ?
@@ -214,7 +261,9 @@ def load_user():
                     'email': result[3],
                     'display_name': result[4],
                     'is_admin': bool(result[5]),
-                    'session_id': result[0]
+                    'session_id': result[0],
+                    'first_name': result[6],
+                    'last_name': result[7]
                 }
                 # Update last activity
                 db.execute(
@@ -608,7 +657,7 @@ def get_entries(tournament_id):
     db = get_db()
     results = db.execute("""
         SELECT e.id, e.entry_name, e.golfer_1, e.golfer_2, e.golfer_3, e.golfer_4, e.golfer_5,
-               e.user_id, u.email
+               e.user_id, u.email, u.first_name, u.last_name
         FROM entries e
         JOIN users u ON e.user_id = u.id
         WHERE e.tournament_id = ?
@@ -623,7 +672,9 @@ def get_entries(tournament_id):
         'golfer_4': r[5],
         'golfer_5': r[6],
         'user_id': r[7],
-        'email': r[8]
+        'email': r[8],
+        'first_name': r[9],
+        'last_name': r[10]
     } for r in results]
 
 
@@ -653,8 +704,19 @@ def compute_leaderboard(tournament_id):
                 'status': golfer.get('status', 'unknown')
             })
 
+        # Build abbreviated real name (e.g., "Cullin T.")
+        first = entry.get('first_name') or ''
+        last = entry.get('last_name') or ''
+        if first and last:
+            owner_name = f"{first} {last[0]}."
+        elif first:
+            owner_name = first
+        else:
+            owner_name = ''
+
         results.append({
             'entry_name': entry['entry_name'],
+            'owner_name': owner_name,
             'team_score': total_score,
             'picks': pick_details,
             'picks_str': ', '.join(picks)
@@ -1082,16 +1144,22 @@ def auth_submit_access_request():
         return redirect(url_for('auth_login'))
 
     email = validate_user_email(request.form.get('email', ''))
-    display_name = request.form.get('display_name', '').strip()
+    first_name = request.form.get('first_name', '').strip()
+    last_name = request.form.get('last_name', '').strip()
 
     if not email:
         return render_template('request_access.html', error='Please enter a valid email address.')
 
-    if not display_name or len(display_name) > 100:
-        return render_template('request_access.html', error='Please enter a valid name (1-100 characters).')
+    if not first_name or len(first_name) > 50:
+        return render_template('request_access.html', error='Please enter a valid first name (1-50 characters).')
+
+    if not last_name or len(last_name) > 50:
+        return render_template('request_access.html', error='Please enter a valid last name (1-50 characters).')
 
     # Basic sanitization
-    display_name = html.escape(display_name)
+    first_name = html.escape(first_name)
+    last_name = html.escape(last_name)
+    display_name = f"{first_name} {last_name}"
 
     client_ip = get_client_ip()
 
@@ -1112,9 +1180,9 @@ def auth_submit_access_request():
     # Insert access request
     try:
         db.execute("""
-            INSERT INTO access_requests (id, email, display_name)
-            VALUES (lower(hex(randomblob(16))), ?, ?)
-        """, [email, display_name])
+            INSERT INTO access_requests (id, email, display_name, first_name, last_name)
+            VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?)
+        """, [email, display_name, first_name, last_name])
         db.commit()
 
         log_security_event('access_requested', request, email=email, details={'name': display_name})
@@ -1181,6 +1249,7 @@ def leaderboard():
         template_results.append({
             'RANK': r['rank'],
             'ENTRY_NAME': r['entry_name'],
+            'OWNER_NAME': r.get('owner_name', ''),
             'TEAM_SCORE': r['team_score'],
             'PICKS': r['picks_str'],
             'TOURNAMENT': tournament['name']
@@ -1481,7 +1550,7 @@ def admin_dashboard():
 
     # Fetch pending access requests
     pending_requests = db.execute("""
-        SELECT id, email, display_name, created_at
+        SELECT id, email, display_name, created_at, first_name, last_name
         FROM access_requests WHERE status = 'pending'
         ORDER BY created_at ASC
     """).fetchall()
@@ -1489,7 +1558,7 @@ def admin_dashboard():
     access_requests = [{
         'id': r[0],
         'email': r[1],
-        'display_name': r[2],
+        'display_name': f"{r[4]} {r[5]}" if r[4] else r[2],
         'created_at': r[3]
     } for r in pending_requests]
 
@@ -1632,7 +1701,7 @@ def admin_approve_user():
 
     db = get_db()
     access_req = db.execute("""
-        SELECT id, email, display_name, status
+        SELECT id, email, display_name, status, first_name, last_name
         FROM access_requests WHERE id = ?
     """, [request_id]).fetchone()
 
@@ -1641,13 +1710,15 @@ def admin_approve_user():
 
     email = access_req[1]
     display_name = access_req[2]
+    first_name = access_req[4]
+    last_name = access_req[5]
 
     # Create user
     is_admin = 1 if email in ADMIN_EMAILS else 0
     db.execute("""
-        INSERT INTO users (id, email, display_name, is_admin)
-        VALUES (lower(hex(randomblob(16))), ?, ?, ?)
-    """, [email, display_name, is_admin])
+        INSERT INTO users (id, email, display_name, first_name, last_name, is_admin)
+        VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?)
+    """, [email, display_name, first_name, last_name, is_admin])
 
     # Update access request
     db.execute("""

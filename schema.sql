@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     email TEXT UNIQUE NOT NULL,
     display_name TEXT,
+    first_name TEXT,
+    last_name TEXT,
     is_admin INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
     last_login_at TEXT
@@ -121,7 +123,9 @@ CREATE INDEX IF NOT EXISTS idx_security_events_time ON security_events(created_a
 CREATE TABLE IF NOT EXISTS access_requests (
     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     email TEXT UNIQUE NOT NULL,
-    display_name TEXT NOT NULL,
+    display_name TEXT,
+    first_name TEXT NOT NULL,
+    last_name TEXT NOT NULL,
     status TEXT DEFAULT 'pending',  -- 'pending', 'approved', 'rejected'
     reviewed_by TEXT REFERENCES users(id),
     reviewed_at TEXT,

@@ -270,36 +270,51 @@ These features are implemented and solid:
 4. Fix bare `except:` clauses
 5. Remove `pandas`/`numpy` from requirements.txt
 
+**Phase 1.5 — User names & entry name data model (P1)**
+6. Split `display_name` into `first_name` + `last_name` on `users` and `access_requests` tables
+   - `ALTER TABLE users ADD COLUMN first_name TEXT; ALTER TABLE users ADD COLUMN last_name TEXT;`
+   - `ALTER TABLE access_requests ADD COLUMN first_name TEXT; ALTER TABLE access_requests ADD COLUMN last_name TEXT;`
+   - Migrate existing `display_name` data: parse "First Last" → `first_name`, `last_name`
+   - Update `schema.sql` for fresh installs
+   - Keep `display_name` column temporarily for backwards compat (drop later)
+7. Update request access form — two fields (First Name, Last Name) instead of one
+8. Update `submit-access-request` route — accept, validate, store both name fields
+9. Update `approve-user` route — copy `first_name` + `last_name` to `users` table
+10. Update admin panel — show "First Last" from new columns
+11. Update leaderboard query — join `users` table to pull `first_name`/`last_name` alongside `entry_name`
+12. Update leaderboard template — show user's real name (e.g., "Cullin T.") under the entry name
+13. Update pick form — relabel "Team Name" to encourage funny names (e.g., "Entry Nickname")
+
 **Phase 2 — Operational basics (P1)**
-6. Replace `print()` with `logging`
-7. Add lightweight DB migration system
-8. Automate session cleanup
-9. Automate golfer refresh (protected endpoint + scheduled job)
-10. Add favicon route
+14. Replace `print()` with `logging`
+15. Add lightweight DB migration system
+16. Automate session cleanup
+17. Automate golfer refresh (protected endpoint + scheduled job)
+18. Add favicon route
 
 **Phase 3 — UI/UX Refresh (P1)**
-11. Create `base.html` shared layout — nav, footer, Tailwind config (this fixes nav inconsistencies, missing admin link, submit_success nav bar all at once)
-12. Refactor all templates to extend `base.html`
-13. Build static Tailwind CSS to replace CDN
-14. Typography and color palette refresh
-15. Leaderboard: default-expanded desktop, score formatting, mobile header
-16. Pick form: confirmation step, double-submit fix, tier label improvements
-17. Player standings: mobile-friendly, column reorder
-18. Submit success: reduce animation
-19. Admin: destructive action separation
+19. Create `base.html` shared layout — nav, footer, Tailwind config (this fixes nav inconsistencies, missing admin link, submit_success nav bar all at once)
+20. Refactor all templates to extend `base.html`
+21. Build static Tailwind CSS to replace CDN
+22. Typography and color palette refresh
+23. Leaderboard: default-expanded desktop, score formatting, mobile header
+24. Pick form: confirmation step, double-submit fix, tier label improvements
+25. Player standings: mobile-friendly, column reorder
+26. Submit success: reduce animation
+27. Admin: destructive action separation
 
 **Phase 4 — Testing (P2)**
-20. Set up pytest with local SQLite test fixtures
-21. Write core tests (auth, picks, leaderboard, admin)
+28. Set up pytest with local SQLite test fixtures
+29. Write core tests (auth, picks, leaderboard, admin)
 
 **Phase 5 — Monitoring (P2)**
-22. Add Sentry or similar error tracking
-23. Set up uptime monitoring
+30. Add Sentry or similar error tracking
+31. Set up uptime monitoring
 
 **Phase 6 — Merge & Deploy**
-24. Merge `feature/turso-migration-magic-auth` to `main`
-25. Verify DO deployment picks up the merge
-26. Smoke test all routes in production
+32. Merge `feature/turso-migration-magic-auth` to `main`
+33. Verify DO deployment picks up the merge
+34. Smoke test all routes in production
 
 ---
 
@@ -345,6 +360,7 @@ _Update this section after completing each phase._
 | Phase | Status | Date | Notes |
 |-------|--------|------|-------|
 | Phase 1 — P0 Bugs & Security | **Complete** | 2026-02-16 | Secured /clear_cache, fixed Procfile, fail-fast secret key, fixed bare excepts, removed pandas/numpy |
+| Phase 1.5 — User Names & Entry Name | **Complete** | 2026-02-16 | Split display_name into first/last, updated access form, approval flow, leaderboard shows "First L.", pick form relabeled |
 | Phase 2 — Operational Basics | Not started | | |
 | Phase 3 — UI/UX Refresh | Not started | | |
 | Phase 4 — Testing | Not started | | |
