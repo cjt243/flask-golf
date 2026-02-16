@@ -70,7 +70,7 @@
 <!-- Leaderboard Cards -->
 <div class="space-y-3">
     {% for row in results %}
-    <div class="team-card group bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-600 rounded-xl transition-all duration-300 hover:shadow-xl hover:shadow-gray-900/20 animate-fade-in"
+    <div class="team-card group card-glow bg-gray-800/80 hover:bg-gray-700/80 border border-gray-700/50 hover:border-gray-600/50 rounded-xl transition-all duration-300 animate-fade-in"
          onclick="toggleContent(this)"
          aria-expanded="false"
          role="button"
@@ -98,7 +98,7 @@
 
             <!-- Entry Name -->
             <div class="flex-1 min-w-0 mx-4">
-                <h3 class="font-semibold text-base sm:text-lg text-gray-100 group-hover:text-white transition-colors truncate" title="{{ row.ENTRY_NAME }}">
+                <h3 class="font-display text-base sm:text-lg text-gray-100 group-hover:text-white transition-colors truncate" title="{{ row.ENTRY_NAME }}">
                     {{ row.ENTRY_NAME }}
                 </h3>
                 {% if row.OWNER_NAME %}
@@ -128,7 +128,7 @@
         </div>
 
         <!-- Expandable Content -->
-        <div class="card-content hidden border-t border-gray-700 bg-gray-900 rounded-b-xl">
+        <div class="card-content hidden border-t border-gray-700/50 bg-gray-900/50 rounded-b-xl">
             <div class="p-4">
                 <h4 class="text-sm font-medium text-gray-400 mb-3">Selected Players</h4>
                 <div class="flex flex-wrap gap-2">

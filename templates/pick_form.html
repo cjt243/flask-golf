@@ -71,7 +71,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
                     </svg>
                 </div>
-                <h2 class="text-2xl font-bold text-white mb-4">Picks Are Locked</h2>
+                <h2 class="font-display text-2xl text-white mb-4">Picks Are Locked</h2>
                 <p class="text-gray-400 mb-8">The tournament has started and picks can no longer be submitted.</p>
                 <a href="/" class="inline-block px-6 py-3 bg-gradient-to-r from-golf-green-600 to-golf-green-700 text-white font-semibold rounded-lg">
                     View Leaderboard
@@ -87,7 +87,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
                 </div>
-                <h2 class="text-2xl font-bold text-white mb-4">Picks Already Submitted</h2>
+                <h2 class="font-display text-2xl text-white mb-4">Picks Already Submitted</h2>
                 <p class="text-gray-400 mb-2">You've already submitted picks for this tournament.</p>
                 <p class="text-golf-gold-400 font-medium mb-8">Team: {{ existing_entry }}</p>
                 <a href="/" class="inline-block px-6 py-3 bg-gradient-to-r from-golf-green-600 to-golf-green-700 text-white font-semibold rounded-lg">
@@ -104,7 +104,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
                 </div>
-                <h2 class="text-2xl font-bold text-white mb-4">No Tournament Data</h2>
+                <h2 class="font-display text-2xl text-white mb-4">No Tournament Data</h2>
                 <p class="text-gray-400 mb-8">Tournament golfer data is not yet available. Please check back later.</p>
                 <a href="/" class="inline-block px-6 py-3 bg-gradient-to-r from-golf-green-600 to-golf-green-700 text-white font-semibold rounded-lg">
                     View Leaderboard
@@ -114,7 +114,7 @@
         {% else %}
         <div class="bg-gray-800 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden">
             <div class="px-8 py-6 bg-gradient-to-r from-gray-700 to-gray-800 border-b border-gray-600">
-                <h2 class="text-xl font-semibold text-gray-100">Make Your Selection</h2>
+                <h2 class="font-display text-xl text-gray-100">Make Your Selection</h2>
                 <p class="text-gray-400 text-sm mt-1">
                     Signed in as <span class="text-golf-green-400">{{ user.email }}</span> - you can only submit once!
                 </p>
@@ -215,7 +215,7 @@
         {% if not picks_locked and not already_submitted and first %}
         <!-- Instructions Card -->
         <div class="mt-8 bg-gray-800 rounded-xl border border-gray-700 p-6">
-            <h3 class="text-lg font-semibold text-gray-200 mb-4">Selection Rules</h3>
+            <h3 class="font-display text-lg text-gray-200 mb-4">Selection Rules</h3>
             <div class="grid md:grid-cols-3 gap-4 text-sm">
                 <div class="bg-gray-700 rounded-lg p-4">
                     <div class="font-medium text-golf-gold-400 mb-2">Top 5 Pick</div>
