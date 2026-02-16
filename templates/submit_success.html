@@ -1,159 +1,48 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Submission Successful</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        'sans': ['Inter', 'system-ui', 'sans-serif'],
-                    },
-                    colors: {
-                        'golf-green': {
-                            50: '#f0fdf4',
-                            500: '#22c55e',
-                            600: '#16a34a',
-                            700: '#15803d',
-                        },
-                        'golf-gold': {
-                            400: '#fbbf24',
-                            500: '#f59e0b',
-                        }
-                    },
-                    animation: {
-                        'bounce-in': 'bounceIn 0.6s ease-out',
-                        'fade-in-up': 'fadeInUp 0.8s ease-out',
-                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        @keyframes bounceIn {
-            0% { transform: scale(0.3); opacity: 0; }
-            50% { transform: scale(1.05); }
-            70% { transform: scale(0.9); }
-            100% { transform: scale(1); opacity: 1; }
-        }
-        @keyframes fadeInUp {
-            from { transform: translateY(30px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-        .celebration-bg {
-            background: radial-gradient(circle at 50% 50%, rgba(34, 197, 94, 0.1) 0%, transparent 70%);
-        }
-    </style>
-</head>
+{% set show_nav = true %}
+{% set active_tab = 'picks' %}
 
-<body class="bg-gray-900 text-gray-100 min-h-screen celebration-bg">
-    <!-- Success Animation Background -->
-    <div class="fixed inset-0 overflow-hidden pointer-events-none">
-        <div class="absolute top-20 left-10 w-2 h-2 bg-golf-gold-400 rounded-full animate-pulse-slow opacity-70"></div>
-        <div class="absolute top-32 right-20 w-1 h-1 bg-golf-green-400 rounded-full animate-pulse-slow opacity-60" style="animation-delay: 1s;"></div>
-        <div class="absolute bottom-40 left-20 w-3 h-3 bg-golf-gold-400 rounded-full animate-pulse-slow opacity-50" style="animation-delay: 2s;"></div>
-        <div class="absolute bottom-20 right-10 w-1 h-1 bg-golf-green-400 rounded-full animate-pulse-slow opacity-80" style="animation-delay: 0.5s;"></div>
-        <div class="absolute top-1/2 left-1/4 w-2 h-2 bg-golf-gold-400 rounded-full animate-pulse-slow opacity-40" style="animation-delay: 1.5s;"></div>
-        <div class="absolute top-1/3 right-1/3 w-1 h-1 bg-golf-green-400 rounded-full animate-pulse-slow opacity-60" style="animation-delay: 2.5s;"></div>
+{% block title %}Picks Submitted - 80 Yard Bombs Cup{% endblock %}
+
+{% block body_class %}{% endblock %}
+
+{% block main_class %}flex-1 flex items-center justify-center px-4 py-8{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto text-center">
+    <!-- Success Icon -->
+    <div class="mb-6">
+        <div class="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-golf-green-500 to-golf-green-600 rounded-full shadow-lg">
+            <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+            </svg>
+        </div>
     </div>
 
-    <!-- Main Content -->
-    <main class="relative z-10 flex items-center justify-center min-h-screen p-4">
-        <div class="max-w-2xl mx-auto text-center">
-            <!-- Success Icon -->
-            <div class="mb-8 animate-bounce-in">
-                <div class="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-golf-green-500 to-golf-green-600 rounded-full shadow-2xl shadow-golf-green-500/25">
-                    <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                </div>
-            </div>
+    <h1 class="text-2xl font-bold text-white mb-2">Picks Submitted!</h1>
+    <p class="text-gray-400 mb-6">Good luck in the tournament.</p>
 
-            <!-- Success Message -->
-            <div class="animate-fade-in-up" style="animation-delay: 0.2s;">
-                <h1 class="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-golf-green-400 to-golf-green-600 mb-4">
-                    Picks Submitted Successfully!
-                </h1>
-                <p class="text-xl text-gray-300 mb-8">
-                    Your selections have been recorded. Good luck in the tournament!
-                </p>
-            </div>
+    <!-- Entry Details -->
+    <div class="bg-gray-800 rounded-xl border border-gray-700 p-6 mb-6 text-left">
+        <div class="text-sm text-gray-400 uppercase tracking-wide mb-1">{{ tournament }}</div>
+        <div class="text-lg font-semibold text-white mb-4">{{ entry_name }}</div>
 
-            <!-- Tournament & Entry Details -->
-            <div class="animate-fade-in-up bg-gray-800 rounded-2xl border border-gray-700 p-8 mb-8 shadow-2xl" style="animation-delay: 0.4s;">
-                <div class="mb-6">
-                    <h2 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-golf-gold-400 to-golf-gold-500 mb-2">
-                        {{ tournament }}
-                    </h2>
-                    <div class="flex items-center justify-center space-x-2">
-                        <div class="w-8 h-8 bg-gradient-to-br from-golf-green-500 to-golf-green-600 rounded-full flex items-center justify-center">
-                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                            </svg>
-                        </div>
-                        <h3 class="text-xl font-semibold text-gray-100">{{ entry_name }}</h3>
-                    </div>
-                </div>
-
-                <!-- Selected Golfers -->
-                <div>
-                    <h4 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Your Selected Players</h4>
-                    <div class="flex flex-wrap justify-center gap-3">
-                        {% for golfer in golfers %}
-                        <span class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-golf-green-600 to-golf-green-700 text-white rounded-full text-sm font-medium shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                            {{ golfer }}
-                        </span>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Action Buttons -->
-            <div class="animate-fade-in-up space-y-4" style="animation-delay: 0.6s;">
-                <a href="/" class="inline-flex items-center px-8 py-4 bg-gradient-to-r from-golf-green-600 to-golf-green-700 hover:from-golf-green-700 hover:to-golf-green-800 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                    </svg>
-                    View Leaderboard
-                </a>
-                
-                <div class="text-center">
-                    <p class="text-sm text-gray-500">
-                        Your picks are locked in. Check the leaderboard to track your team's progress!
-                    </p>
-                </div>
-            </div>
-
-            <!-- Additional Info Card -->
-            <div class="animate-fade-in-up mt-8 bg-gray-800/50 border border-gray-700 rounded-xl p-6" style="animation-delay: 0.8s;">
-                <div class="flex items-start space-x-3">
-                    <div class="flex-shrink-0">
-                        <svg class="w-6 h-6 text-golf-gold-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                    </div>
-                    <div class="text-left">
-                        <h4 class="text-sm font-medium text-gray-200 mb-2">What's Next?</h4>
-                        <ul class="text-sm text-gray-400 space-y-1">
-                            <li>• Your picks are now locked and cannot be changed</li>
-                            <li>• Tournament results will update automatically during play</li>
-                            <li>• Check back regularly to see how your team is performing</li>
-                            <li>• The leaderboard shows live scores and rankings</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
+        <div class="flex flex-wrap gap-2">
+            {% for golfer in golfers %}
+            <span class="inline-flex items-center px-3 py-1.5 bg-golf-green-600/20 text-golf-green-400 border border-golf-green-600/30 rounded-full text-sm font-medium">
+                {{ golfer }}
+            </span>
+            {% endfor %}
         </div>
-    </main>
-</body>
+    </div>
 
-</html>
+    <a href="/" class="inline-flex items-center justify-center w-full py-3 px-4 bg-gradient-to-r from-golf-green-600 to-golf-green-700 hover:from-golf-green-500 hover:to-golf-green-600 text-white font-semibold rounded-lg transition-all duration-200">
+        View Leaderboard
+    </a>
+
+    <p class="text-xs text-gray-500 mt-4">
+        Your picks are locked in. Check the leaderboard to track your progress.
+    </p>
+</div>
+{% endblock %}

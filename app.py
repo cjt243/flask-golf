@@ -293,6 +293,12 @@ def load_user():
                         pass
 
 
+@app.context_processor
+def inject_globals():
+    """Inject global template variables."""
+    return {'season_year': datetime.now().year}
+
+
 # =============================================================================
 # CSRF Protection
 # =============================================================================
