@@ -82,7 +82,27 @@
                         <a href="/players" class="px-3 py-1.5 text-xs font-medium text-white bg-golf-green-600 rounded-md transition-colors">
                             Players
                         </a>
+                        <a href="/make_picks" class="px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-700 rounded-md transition-colors">
+                            Make Picks
+                        </a>
                     </div>
+
+                    <!-- Auth -->
+                    {% if user %}
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs text-gray-400 hidden sm:inline">{{ user.email }}</span>
+                        <form action="/auth/logout" method="POST" class="inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white bg-gray-700 hover:bg-gray-600 rounded-md transition-colors">
+                                Sign Out
+                            </button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <a href="/auth/login" class="px-3 py-1.5 text-xs font-medium text-white bg-golf-green-600 hover:bg-golf-green-500 rounded-md transition-colors">
+                        Sign In
+                    </a>
+                    {% endif %}
                 </div>
             </div>
         </div>

@@ -88,39 +88,105 @@
     <!-- Header -->
     <header class="bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-700">
         <div class="max-w-4xl mx-auto px-4 py-6">
-            <div class="text-center">
-                <h1 class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-golf-gold-400 to-golf-gold-500">
-                    {{ tournament_name }} Picks
-                </h1>
-                <p class="text-gray-400 mt-2">Select your golfers for the tournament</p>
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-golf-gold-400 to-golf-gold-500">
+                        {{ tournament_name }} Picks
+                    </h1>
+                    <p class="text-gray-400 text-sm mt-1">Select your golfers for the tournament</p>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <div class="flex items-center space-x-1 bg-gray-800 rounded-lg p-1">
+                        <a href="/" class="px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-700 rounded-md transition-colors">
+                            Leaderboard
+                        </a>
+                        <a href="/players" class="px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-700 rounded-md transition-colors">
+                            Players
+                        </a>
+                        <a href="/make_picks" class="px-3 py-1.5 text-xs font-medium text-white bg-golf-green-600 rounded-md transition-colors">
+                            Make Picks
+                        </a>
+                    </div>
+
+                    <!-- Auth -->
+                    {% if user %}
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs text-gray-400 hidden sm:inline">{{ user.email }}</span>
+                        <form action="/auth/logout" method="POST" class="inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white bg-gray-700 hover:bg-gray-600 rounded-md transition-colors">
+                                Sign Out
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </header>
 
     <!-- Main Content -->
     <main class="max-w-4xl mx-auto px-4 py-8">
+        {% if picks_locked %}
+        <!-- Picks Locked Message -->
+        <div class="bg-gray-800 rounded-2xl shadow-2xl border border-red-700 overflow-hidden">
+            <div class="px-8 py-12 text-center">
+                <div class="w-20 h-20 mx-auto mb-6 bg-red-900/50 border border-red-700 rounded-full flex items-center justify-center">
+                    <svg class="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-white mb-4">Picks Are Locked</h2>
+                <p class="text-gray-400 mb-8">The tournament has started and picks can no longer be submitted.</p>
+                <a href="/" class="inline-block px-6 py-3 bg-gradient-to-r from-golf-green-600 to-golf-green-700 text-white font-semibold rounded-lg">
+                    View Leaderboard
+                </a>
+            </div>
+        </div>
+        {% elif already_submitted %}
+        <!-- Already Submitted Message -->
+        <div class="bg-gray-800 rounded-2xl shadow-2xl border border-golf-gold-500 overflow-hidden">
+            <div class="px-8 py-12 text-center">
+                <div class="w-20 h-20 mx-auto mb-6 bg-golf-gold-500/20 border border-golf-gold-500 rounded-full flex items-center justify-center">
+                    <svg class="w-10 h-10 text-golf-gold-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-white mb-4">Picks Already Submitted</h2>
+                <p class="text-gray-400 mb-2">You've already submitted picks for this tournament.</p>
+                <p class="text-golf-gold-400 font-medium mb-8">Team: {{ existing_entry }}</p>
+                <a href="/" class="inline-block px-6 py-3 bg-gradient-to-r from-golf-green-600 to-golf-green-700 text-white font-semibold rounded-lg">
+                    View Leaderboard
+                </a>
+            </div>
+        </div>
+        {% elif not first %}
+        <!-- No Golfers Available -->
+        <div class="bg-gray-800 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden">
+            <div class="px-8 py-12 text-center">
+                <div class="w-20 h-20 mx-auto mb-6 bg-gray-700 rounded-full flex items-center justify-center">
+                    <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-white mb-4">No Tournament Data</h2>
+                <p class="text-gray-400 mb-8">Tournament golfer data is not yet available. Please check back later.</p>
+                <a href="/" class="inline-block px-6 py-3 bg-gradient-to-r from-golf-green-600 to-golf-green-700 text-white font-semibold rounded-lg">
+                    View Leaderboard
+                </a>
+            </div>
+        </div>
+        {% else %}
         <div class="bg-gray-800 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden">
             <div class="px-8 py-6 bg-gradient-to-r from-gray-700 to-gray-800 border-b border-gray-600">
                 <h2 class="text-xl font-semibold text-gray-100">Make Your Selection</h2>
-                <p class="text-gray-400 text-sm mt-1">Choose your golfers carefully - you can only submit once!</p>
+                <p class="text-gray-400 text-sm mt-1">
+                    Signed in as <span class="text-golf-green-400">{{ user.email }}</span> - you can only submit once!
+                </p>
             </div>
 
             <form action="/submit_picks" method="post" class="p-8 space-y-8">
-                <!-- Real Name -->
-                <div class="space-y-2">
-                    <label class="block text-sm font-medium text-gray-300" for="real_name">
-                        Your Real Name
-                        <span class="text-red-400">*</span>
-                    </label>
-                    <input 
-                        id="real_name"
-                        class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:border-golf-green-500 focus:ring-2 focus:ring-golf-green-500/20 transition-colors" 
-                        type="text" 
-                        name="real_name" 
-                        placeholder="Enter your first and last name"
-                        required>
-                    <p class="text-xs text-gray-500">For record keeping and prize distribution</p>
-                </div>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
                 <!-- Entry Name -->
                 <div class="space-y-2">
@@ -209,7 +275,9 @@
                 </div>
             </form>
         </div>
+        {% endif %}
 
+        {% if not picks_locked and not already_submitted and first %}
         <!-- Instructions Card -->
         <div class="mt-8 bg-gray-800 rounded-xl border border-gray-700 p-6">
             <h3 class="text-lg font-semibold text-gray-200 mb-4">📋 Selection Rules</h3>
@@ -228,6 +296,7 @@
                 </div>
             </div>
         </div>
+        {% endif %}
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
