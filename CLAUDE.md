@@ -6,10 +6,10 @@ Flask Golf is a web application for a fantasy golf league ("80 Yard Bombs Cup").
 
 ## Tech Stack
 
-- **Python 3.10** (see `runtime.txt`)
+- **Python 3.12** (dev environment; `runtime.txt` specifies 3.10.14 for production)
 - **Flask 3.0.3** with Jinja2 templates
 - **Turso/libSQL** via `libsql-experimental` for database
-- **Resend** for transactional email (magic link delivery)
+- **Resend** for transactional email (magic link delivery, from `picks@updates.cullin.link`)
 - **Argon2** (`argon2-cffi`) for token hashing
 - **email-validator** for email input validation
 - **Requests** for HTTP calls to the Golf API
@@ -25,6 +25,7 @@ Flask Golf is a web application for a fantasy golf league ("80 Yard Bombs Cup").
 flask-golf/
 ├── app.py                  # Main Flask application (all routes + helpers)
 ├── schema.sql              # Turso/libSQL database schema
+├── config.py               # Local dev config (gitignored) — sets env vars
 ├── gunicorn_config.py      # Gunicorn production config (port 8080, 2 workers)
 ├── requirements.txt        # Pinned Python dependencies
 ├── runtime.txt             # Python version (3.10.14)
@@ -80,8 +81,8 @@ This is a single-file Flask app — all routes, helpers, and configuration live 
 **Magic Link Flow:**
 1. User enters email on `/auth/login`
 2. Server generates a `secrets.token_urlsafe(32)` token, hashes it with Argon2id, stores in `auth_tokens` table
-3. Email with verification link sent via Resend (or printed to console in dev mode)
-4. User clicks link → `/auth/verify` validates token against stored Argon2 hash
+3. Email with verification link sent via Resend (or printed to console if `RESEND_API_KEY` is not set)
+4. User clicks link -> `/auth/verify` validates token against stored Argon2 hash
 5. User record created (if new) or updated; session token generated and set as `golf_session` cookie
 6. Sessions stored in `sessions` table with SHA-256 hashed token, 7-day expiry
 
@@ -133,12 +134,20 @@ Events logged to `security_events` table: `magic_link_sent`, `login`, `logout`, 
 - **Data cache**: In-memory dict with 5-minute TTL (`CACHE_TTL = 300`). Cache keys are per-tournament: `leaderboard_{id}`, `players_{id}`.
 - Cache is cleared on pick submission, tournament activation, golfer refresh, and tournament deletion.
 - No persistent/shared cache — each gunicorn worker has its own cache.
+- Page loads read from the database (not the API). The API is only called when an admin clicks "Refresh Golfers".
 
 ### Database
 
-**Turso/libSQL** — connection per request via Flask `g` object (`get_db()`), closed on teardown. Local development uses a file-based SQLite database (`file:local.db`), production uses Turso's hosted libSQL.
+**Turso/libSQL** — connection per request via Flask `g` object (`get_db()`), closed on teardown.
+
+- **Production**: Turso hosted libSQL at `libsql://flask-golf-cjt243.aws-us-east-1.turso.io`
+- **Local development**: Can use `file:local.db` for a local SQLite file, or point directly at Turso (configured in `config.py`)
 
 Schema is defined in `schema.sql`. Initialize with `flask init-db`.
+
+**Important**: `libsql_experimental` requires **tuples** for query parameters, not lists. The `LibSQLConnectionWrapper` class in `get_db()` auto-converts lists to tuples to handle this transparently. All queries in the codebase use list syntax `[param]` which the wrapper converts.
+
+**Note on schema migrations**: `CREATE TABLE IF NOT EXISTS` will not add columns to existing tables. If the schema changes (e.g., adding `is_admin` to `users`), you must either drop and recreate the table or use `ALTER TABLE`. The `flask init-db` command alone is not sufficient for schema updates on existing databases.
 
 **Tables:**
 - `users` — email, display_name, is_admin, login timestamps
@@ -156,8 +165,16 @@ Schema is defined in `schema.sql`. Initialize with `flask init-db`.
 
 Golfer data is fetched from the **Slash Golf API** (via RapidAPI) at `https://live-golf-data.p.rapidapi.com`. Three endpoints are used:
 - `/schedule` — tournament schedule by year/org
-- `/leaderboard` — live scores for a tournament
-- `/tournament` — tournament field (fallback when no leaderboard data)
+- `/leaderboard` — live scores for a tournament (response key: `leaderboardRows`)
+- `/tournament` — tournament field (response key: `players`; used as fallback when leaderboard is empty)
+
+**API response quirks:**
+- The leaderboard endpoint returns player data under `leaderboardRows`, not `leaderboard`.
+- The tournament field endpoint returns players under `players`.
+- Some numeric fields use MongoDB-style `{"$numberInt": "4"}` dicts instead of plain integers. The `_api_int()` helper handles this conversion.
+- The leaderboard endpoint may return a 200 with an empty `leaderboardRows` list for completed tournaments or tournaments that haven't started. The code falls through to the `/tournament` endpoint in this case.
+- The `/tournament` field endpoint only includes player names and tee times — no scores, positions, or OWGR ranks. Those come from the leaderboard endpoint during/after play.
+- Tournament fields may not be published until close to the tournament start date.
 
 Data refresh is triggered manually from the admin panel (`/admin/refresh-golfers`). The `refresh_golfers_from_api()` function upserts golfer records using `ON CONFLICT ... DO UPDATE`.
 
@@ -177,24 +194,30 @@ The `tournaments.season_year` column supports multiple seasons. The admin dashbo
 | `TURSO_AUTH_TOKEN` | Prod | Turso authentication token |
 | `FLASK_SECRET_KEY` | Yes | Secret key for Flask sessions (auto-generated if missing) |
 | `RESEND_API_KEY` | Prod | Resend API key for sending magic link emails |
-| `EMAIL_FROM` | No | From address for emails (default: `picks@80yardbombs.com`) |
+| `EMAIL_FROM` | No | From address for emails (default: `picks@updates.cullin.link`) |
 | `GOLF_API_KEY` | Yes | RapidAPI key for Slash Golf API |
 | `ADMIN_EMAILS` | No | Comma-separated admin email addresses |
 
-For local development, these can be defined in a `config.py` file at the project root (gitignored). Without `RESEND_API_KEY`, magic links are printed to the console.
+For local development, these are defined in a `config.py` file at the project root (gitignored). The file sets `os.environ` values and is loaded via `from config import *` at app startup. Without `RESEND_API_KEY`, magic links are printed to the console (requires `PYTHONUNBUFFERED=1` when redirecting output to a file).
 
 ## Development Setup
 
 ```bash
-# Use Python 3.10
+# Activate virtual environment
+source .venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 
-# Set credentials via environment or config.py
-# Initialize database
+# Create config.py with credentials (gitignored)
+# Set TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, GOLF_API_KEY, FLASK_SECRET_KEY
+
+# Initialize database (only needed for new databases)
 flask init-db
 
-# Run dev server (magic links print to console)
-python app.py
+# Run dev server
+PYTHONUNBUFFERED=1 python app.py
+# Magic links print to console if RESEND_API_KEY is not set
 ```
 
 ## Production Deployment
@@ -224,7 +247,7 @@ No linting or formatting tools are configured. There is no `pyproject.toml`, `.f
 
 - All application logic is in `app.py` — keep it as a single-file app unless there's a strong reason to split.
 - Templates live in `templates/` and use Tailwind CSS via CDN (no build step).
-- Database queries use parameterized SQL via `libsql_experimental` (no ORM).
+- Database queries use parameterized SQL via `libsql_experimental` (no ORM). Pass parameters as lists — the `LibSQLConnectionWrapper` converts them to tuples.
 - All POST routes require CSRF tokens; auth routes use `@login_required` or `@admin_required`.
 - Timestamps are stored as ISO strings in UTC; converted to US/Eastern for display.
 - The pick form divides golfers into three tiers by OWGR rank: top 5, next 11, and the rest.
@@ -232,9 +255,18 @@ No linting or formatting tools are configured. There is no `pyproject.toml`, `.f
 - Security events (logins, failures, rate limits) are logged to the `security_events` table.
 - `g.user` is populated on every request via `load_user()` and passed to templates as `user`.
 
+## Known Issues
+
+- `datetime.utcnow()` deprecation warnings on Python 3.12+ — should migrate to `datetime.now(datetime.UTC)`
+- OWGR rank data is not populated from the API (the leaderboard endpoint doesn't include it) — pick form tier selection may not work correctly without OWGR data
+- `flask init-db` uses `CREATE TABLE IF NOT EXISTS` which won't apply schema changes to existing tables — need a migration strategy
+
 ## TODOs / Future Work
 
+- Verify `updates.cullin.link` domain in Resend for magic link email delivery
 - Remove unused `pandas`/`numpy` from `requirements.txt` (no longer needed post-Snowflake migration)
+- Fix `datetime.utcnow()` deprecation warnings (replace with `datetime.now(datetime.UTC)`)
+- Add OWGR rank data source (current API endpoints don't reliably provide it)
 - Add proper logging (replace `print()` calls with Python `logging` module)
 - Add test suite (pytest + test fixtures for Turso)
 - Schedule `flask cleanup-sessions` as a cron/scheduled task (command exists but needs automation)
@@ -246,3 +278,5 @@ No linting or formatting tools are configured. There is no `pyproject.toml`, `.f
 - Consider moving from in-memory cache to something persistent across gunicorn workers
 - Add CI/CD pipeline
 - Set up structured logging for security events
+- Add a proper database migration strategy (beyond `flask init-db`)
+- Add a favicon (currently 404s on every page load)

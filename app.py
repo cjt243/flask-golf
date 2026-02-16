@@ -398,7 +398,7 @@ def create_session(user_id):
 def send_magic_link(email, token):
     """Send magic link email via Resend."""
     api_key = os.getenv('RESEND_API_KEY')
-    email_from = os.getenv('EMAIL_FROM', 'picks@80yardbombs.com')
+    email_from = os.getenv('EMAIL_FROM', 'picks@updates.cullin.link')
 
     if not api_key:
         # Development mode - print to console
@@ -687,17 +687,20 @@ def refresh_golfers_from_api(tournament_id, tournament_external_id, year=None):
     # Try leaderboard first (has live scores)
     data = fetch_leaderboard(tournament_external_id, year)
 
-    if not data:
-        # Fall back to tournament field if no leaderboard yet
+    if not data or not (data.get('leaderboardRows') or data.get('leaderboard')):
+        # Fall back to tournament field if no leaderboard data
         data = fetch_tournament_field(tournament_external_id, year)
         if not data:
             return False
 
     db = get_db()
 
-    # Handle leaderboard response format
-    leaderboard = data.get('leaderboard', [])
+    # Handle leaderboard or tournament field response format
+    # API uses 'leaderboardRows' for leaderboard data, 'players' for tournament field
+    leaderboard = data.get('leaderboardRows', []) or data.get('leaderboard', []) or data.get('players', [])
     cut_line = data.get('cutLine')
+    if not cut_line and data.get('cutLines'):
+        cut_line = data['cutLines'][0].get('cutScore')
 
     for player in leaderboard:
         # Player name handling - API uses 'firstName' and 'lastName'
@@ -747,11 +750,11 @@ def refresh_golfers_from_api(tournament_id, tournament_external_id, year=None):
             total_score,
             total_str or '--',
             today_str or '--',
-            player.get('currentRound', player.get('round', 1)),
+            _api_int(player.get('currentRound', player.get('round', 1))),
             player.get('thru', ''),
             player.get('teeTime', ''),
             status,
-            player.get('owgr', player.get('ranking'))
+            _api_int(player.get('owgr', player.get('ranking')))
         ])
 
     # Update metadata
@@ -766,6 +769,18 @@ def refresh_golfers_from_api(tournament_id, tournament_external_id, year=None):
 
     db.commit()
     return True
+
+
+def _api_int(value):
+    """Extract integer from API value, handling {'$numberInt': '4'} dicts."""
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return int(value.get('$numberInt', 0))
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
 
 
 def parse_score_to_int(score_str):
