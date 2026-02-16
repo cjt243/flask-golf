@@ -120,7 +120,7 @@ The app connects to **production Turso DB** even in local dev (same instance). K
 - Use `with_server.py` helper for simple page screenshots: `uv run python scripts/with_server.py --server "uv run flask run" --port 5000 -- uv run python test.py`
 - For authenticated tests that need DB access, start the server via `subprocess.Popen` and use `requests` to poll `/health` until ready.
 - **Kill port 5000** between test runs: `lsof -ti:5000 | xargs -r kill -9`
-- `config.py` (gitignored) overrides env vars set by `.env` — removing a var from subprocess env won't help if `config.py` re-sets it.
+- `load_dotenv()` is called explicitly at the top of `app.py` so `.env` is loaded regardless of how the app is started (`python app.py`, `flask run`, or `gunicorn`).
 
 ## Workflow
 

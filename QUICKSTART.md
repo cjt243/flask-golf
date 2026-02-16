@@ -6,15 +6,14 @@ Reference for runtime environments, configuration, and deployment.
 
 | File | Tracked | Purpose | Loaded By |
 |------|---------|---------|-----------|
-| `.env` | No (gitignored) | **Primary local dev config** — all env vars | `python-dotenv` (auto-loaded by Flask) |
-| `config.py` | No (gitignored) | Legacy local dev config — sets `os.environ` | `from config import *` in `app.py` |
+| `.env` | No (gitignored) | **Primary local dev config** — all env vars | `load_dotenv()` in `app.py` |
 | `.do/app.yaml` | Yes | DigitalOcean App Platform deploy spec | DO dashboard import |
 | `.do/deploy.template.yaml` | Yes | DO deploy template (alternative format) | DO dashboard import |
 | `gunicorn_config.py` | Yes | Gunicorn settings (port 8080, 2 workers) | `gunicorn --config` flag |
 | `runtime.txt` | Yes | Python version for platform builds | Heroku/DO buildpack |
 | `Procfile.txt` | Yes | Heroku process definition | Heroku |
 
-**Load order**: Flask auto-loads `.env` via `python-dotenv`, then `app.py` imports `config.py` (if present). Values in `config.py` can override `.env` since they set `os.environ` directly after `.env` is already loaded.
+**Load order**: `app.py` calls `load_dotenv()` at the top, before Flask app creation. This loads `.env` regardless of how the app is started (`python app.py`, `flask run`, or `gunicorn`).
 
 ## Environment Variables
 

@@ -26,13 +26,12 @@ from flask import (
     session, abort, g, make_response
 )
 from flask_compress import Compress
+from dotenv import load_dotenv
 from pytz import timezone as pytz_timezone
 
-# Try to load local config for development
-try:
-    from config import *
-except ModuleNotFoundError:
-    pass
+# Load .env before app creation so env vars are available for config checks.
+# Flask only auto-loads .env via `flask run`, not `python app.py` or gunicorn.
+load_dotenv()
 
 app = Flask(__name__)
 Compress(app)
