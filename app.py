@@ -36,7 +36,14 @@ app = Flask(__name__)
 Compress(app)
 
 # Flask configuration
-app.secret_key = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(32))
+_secret_key = os.getenv('FLASK_SECRET_KEY')
+if not _secret_key and not os.getenv('FLASK_DEBUG'):
+    raise RuntimeError(
+        'FLASK_SECRET_KEY must be set in production. '
+        'Each Gunicorn worker generates a different random key without it, '
+        'breaking sessions and CSRF.'
+    )
+app.secret_key = _secret_key or secrets.token_hex(32)
 app.config.update(
     SESSION_COOKIE_SECURE=not app.debug,
     SESSION_COOKIE_HTTPONLY=True,
@@ -1152,7 +1159,7 @@ def leaderboard():
                 dt = datetime.fromisoformat(last_updated)
                 dt = dt.replace(tzinfo=pytz_timezone('UTC')).astimezone(pytz_timezone('US/Eastern'))
                 last_updated = dt.strftime('%A %B %d @ %I:%M %p %Z')
-            except:
+            except (ValueError, TypeError):
                 last_updated = 'Recently updated'
         else:
             last_updated = 'N/A'
@@ -1219,7 +1226,7 @@ def player_standings():
                 dt = datetime.fromisoformat(last_updated)
                 dt = dt.replace(tzinfo=pytz_timezone('UTC')).astimezone(pytz_timezone('US/Eastern'))
                 last_updated = dt.strftime('%A %B %d @ %I:%M %p %Z')
-            except:
+            except (ValueError, TypeError):
                 last_updated = 'Recently updated'
         else:
             last_updated = 'N/A'
@@ -1714,6 +1721,7 @@ def health_check():
 
 
 @app.route('/clear_cache')
+@admin_required
 def clear_cache():
     """Clear all cached data."""
     _cache.clear()

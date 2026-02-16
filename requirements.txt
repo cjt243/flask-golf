@@ -28,13 +28,9 @@ charset-normalizer==3.3.2
 idna==3.7
 urllib3==2.2.1
 
-# Data processing
-pandas==2.2.2
-numpy==1.26.4
-python-dateutil==2.9.0.post0
+# Timezone
 pytz==2024.1
 tzdata==2024.1
-six==1.16.0
 
 # Compression
 Brotli==1.1.0
