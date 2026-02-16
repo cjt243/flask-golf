@@ -4,6 +4,8 @@
 
 Flask Golf is a web application for a fantasy golf league ("80 Yard Bombs Cup"). Users authenticate via magic link email, submit golfer picks for active tournaments, and view leaderboards and player standings. Data is stored in Turso (libSQL) and golfer scores are fetched from the Slash Golf API (via RapidAPI). The frontend uses Tailwind CSS with a dark theme.
 
+**See [`QUICKSTART.md`](QUICKSTART.md)** for runtime environments, configuration file locations, service dashboards, and deployment details.
+
 ## Tech Stack
 
 - **Python 3.12** (dev environment; `runtime.txt` specifies 3.10.14 for production)
@@ -25,7 +27,9 @@ Flask Golf is a web application for a fantasy golf league ("80 Yard Bombs Cup").
 flask-golf/
 ├── app.py                  # Main Flask application (all routes + helpers)
 ├── schema.sql              # Turso/libSQL database schema
-├── config.py               # Local dev config (gitignored) — sets env vars
+├── .env                    # Local dev env vars (gitignored) — auto-loaded by python-dotenv
+├── config.py               # Legacy local dev config (gitignored) — sets os.environ
+├── QUICKSTART.md           # Runtime environments, config locations, service dashboards
 ├── gunicorn_config.py      # Gunicorn production config (port 8080, 2 workers)
 ├── requirements.txt        # Pinned Python dependencies
 ├── runtime.txt             # Python version (3.10.14)
@@ -198,7 +202,7 @@ The `tournaments.season_year` column supports multiple seasons. The admin dashbo
 | `GOLF_API_KEY` | Yes | RapidAPI key for Slash Golf API |
 | `ADMIN_EMAILS` | No | Comma-separated admin email addresses |
 
-For local development, these are defined in a `config.py` file at the project root (gitignored). The file sets `os.environ` values and is loaded via `from config import *` at app startup. Without `RESEND_API_KEY`, magic links are printed to the console (requires `PYTHONUNBUFFERED=1` when redirecting output to a file).
+For local development, env vars live in `.env` at the project root (gitignored). Flask auto-loads it via `python-dotenv`. A legacy `config.py` may also exist and is imported via `from config import *` — it can override `.env` values since it runs after dotenv loading. Without `RESEND_API_KEY`, magic links are printed to the console (requires `PYTHONUNBUFFERED=1` when redirecting output to a file). See [`QUICKSTART.md`](QUICKSTART.md) for full configuration details.
 
 ## Development Setup
 
@@ -257,15 +261,12 @@ No linting or formatting tools are configured. There is no `pyproject.toml`, `.f
 
 ## Known Issues
 
-- `datetime.utcnow()` deprecation warnings on Python 3.12+ — should migrate to `datetime.now(datetime.UTC)`
 - OWGR rank data is not populated from the API (the leaderboard endpoint doesn't include it) — pick form tier selection may not work correctly without OWGR data
 - `flask init-db` uses `CREATE TABLE IF NOT EXISTS` which won't apply schema changes to existing tables — need a migration strategy
 
 ## TODOs / Future Work
 
-- Verify `updates.cullin.link` domain in Resend for magic link email delivery
 - Remove unused `pandas`/`numpy` from `requirements.txt` (no longer needed post-Snowflake migration)
-- Fix `datetime.utcnow()` deprecation warnings (replace with `datetime.now(datetime.UTC)`)
 - Add OWGR rank data source (current API endpoints don't reliably provide it)
 - Add proper logging (replace `print()` calls with Python `logging` module)
 - Add test suite (pytest + test fixtures for Turso)

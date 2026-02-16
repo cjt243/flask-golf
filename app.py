@@ -10,7 +10,7 @@ import html
 import time
 import secrets
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 
 import libsql_experimental as libsql
@@ -24,7 +24,7 @@ from flask import (
     session, abort, g, make_response
 )
 from flask_compress import Compress
-from pytz import timezone
+from pytz import timezone as pytz_timezone
 
 # Try to load local config for development
 try:
@@ -199,8 +199,8 @@ def load_user():
         """, [token_hash]).fetchone()
 
         if result:
-            expires_at = datetime.fromisoformat(result[2])
-            if expires_at > datetime.utcnow():
+            expires_at = datetime.fromisoformat(result[2]).replace(tzinfo=timezone.utc)
+            if expires_at > datetime.now(timezone.utc):
                 g.user = {
                     'id': result[1],
                     'email': result[3],
@@ -260,7 +260,7 @@ def check_rate_limit(identifier, action):
         return True
 
     db = get_db()
-    window_start = datetime.utcnow() - timedelta(minutes=limit_config['window_minutes'])
+    window_start = datetime.now(timezone.utc) - timedelta(minutes=limit_config['window_minutes'])
 
     result = db.execute("""
         SELECT attempts, window_start FROM rate_limits
@@ -269,7 +269,7 @@ def check_rate_limit(identifier, action):
 
     if result:
         attempts, stored_window = result
-        stored_window_dt = datetime.fromisoformat(stored_window)
+        stored_window_dt = datetime.fromisoformat(stored_window).replace(tzinfo=timezone.utc)
 
         if stored_window_dt < window_start:
             # Window expired, reset
@@ -377,7 +377,7 @@ def create_session(user_id):
     """Create a new session for user and return session token."""
     session_token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(session_token.encode()).hexdigest()
-    expires_at = datetime.utcnow() + timedelta(days=SESSION_EXPIRY_DAYS)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=SESSION_EXPIRY_DAYS)
 
     db = get_db()
     db.execute("""
@@ -844,7 +844,7 @@ def auth_request_link():
     # Generate token
     raw_token = secrets.token_urlsafe(32)
     token_hash = ph.hash(raw_token)
-    expires_at = datetime.utcnow() + timedelta(minutes=MAGIC_LINK_EXPIRY_MINUTES)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=MAGIC_LINK_EXPIRY_MINUTES)
 
     db = get_db()
     db.execute("""
@@ -888,9 +888,9 @@ def auth_verify():
     valid_token_id = None
     for result in results:
         token_id, stored_hash, expires_at, used_at = result
-        expires_dt = datetime.fromisoformat(expires_at)
+        expires_dt = datetime.fromisoformat(expires_at).replace(tzinfo=timezone.utc)
 
-        if expires_dt < datetime.utcnow():
+        if expires_dt < datetime.now(timezone.utc):
             continue
 
         try:
@@ -991,7 +991,7 @@ def leaderboard():
         if last_updated:
             try:
                 dt = datetime.fromisoformat(last_updated)
-                dt = dt.replace(tzinfo=timezone('UTC')).astimezone(timezone('US/Eastern'))
+                dt = dt.replace(tzinfo=pytz_timezone('UTC')).astimezone(pytz_timezone('US/Eastern'))
                 last_updated = dt.strftime('%A %B %d @ %I:%M %p %Z')
             except:
                 last_updated = 'Recently updated'
@@ -1057,7 +1057,7 @@ def player_standings():
         if last_updated:
             try:
                 dt = datetime.fromisoformat(last_updated)
-                dt = dt.replace(tzinfo=timezone('UTC')).astimezone(timezone('US/Eastern'))
+                dt = dt.replace(tzinfo=pytz_timezone('UTC')).astimezone(pytz_timezone('US/Eastern'))
                 last_updated = dt.strftime('%A %B %d @ %I:%M %p %Z')
             except:
                 last_updated = 'Recently updated'
