@@ -23,7 +23,8 @@ Flask Golf is a single-file Flask web app for a fantasy golf league ("80 Yard Bo
 |------|---------|
 | `app.py` | Entire application |
 | `schema.sql` | Database schema (Turso/libSQL) |
-| `templates/*.html` | 10 Jinja2 templates (standalone — no base template yet) |
+| `templates/base.html` | Shared layout: nav, footer, Tailwind config, typography |
+| `templates/*.html` | 11 Jinja2 templates — all extend `base.html` |
 | `gunicorn_config.py` | Production server config (port 8080, 2 workers) |
 | `requirements.txt` | Pinned Python dependencies |
 | `.env` | Local dev env vars (gitignored) |
@@ -45,7 +46,9 @@ Flask Golf is a single-file Flask web app for a fantasy golf league ("80 Yard Bo
 | `/auth/submit-access-request` | CSRF | Submit access request |
 | `/admin` + sub-routes | Admin | Tournament management, user approval |
 | `/health` | Public | Health check JSON |
-| `/clear_cache` | Public | **BUG: unauthenticated** (P0 fix pending) |
+| `/clear_cache` | Admin | Clear in-memory cache |
+| `/api/auto-refresh` | API Key/Admin | Automated golfer score refresh (POST) |
+| `/favicon.ico` | Public | SVG favicon (7-day cache) |
 
 ### Auth
 
@@ -57,11 +60,13 @@ Turso/libSQL via `libsql_experimental`. The `LibSQLConnectionWrapper` auto-conve
 
 **Tables**: `users`, `auth_tokens`, `sessions`, `tournaments`, `entries`, `golfers`, `tournament_metadata`, `rate_limits`, `security_events`, `access_requests`, `app_settings`, `failed_logins`
 
-**Migration caveat**: `CREATE TABLE IF NOT EXISTS` won't add columns to existing tables. Must use `ALTER TABLE` manually for schema changes.
+**User names**: `users` and `access_requests` tables have `first_name` + `last_name` columns (split from legacy `display_name`). Leaderboard shows "First L." under entry names.
+
+**Migrations**: `_run_migrations()` in `init_db()` handles ALTER TABLE additions. `CREATE TABLE IF NOT EXISTS` won't add columns — use the migration list for schema changes.
 
 ### Golf API
 
-Slash Golf API via RapidAPI (`live-golf-data.p.rapidapi.com`). Endpoints: `/schedule`, `/leaderboard` (key: `leaderboardRows`), `/tournament` (key: `players`). Some fields use MongoDB-style `{"$numberInt": "4"}` — handled by `_api_int()`. Refresh is manual via admin panel (automation planned in Phase 2).
+Slash Golf API via RapidAPI (`live-golf-data.p.rapidapi.com`). Endpoints: `/schedule`, `/leaderboard` (key: `leaderboardRows`), `/tournament` (key: `players`). Some fields use MongoDB-style `{"$numberInt": "4"}` — handled by `_api_int()`. Refresh via admin panel or `POST /api/auto-refresh` (X-API-Key header auth, reuses GOLF_API_KEY).
 
 ### Caching
 
@@ -73,9 +78,11 @@ In-memory dict, 5-minute TTL, per-worker (not shared). Cleared on pick submissio
 - DB params as lists — wrapper converts to tuples
 - All POST routes require CSRF
 - Timestamps: ISO UTC in DB, US/Eastern for display
-- `g.user` populated every request via `load_user()`, passed to templates as `user`
-- Error logging currently uses `print()` (migrating to `logging` per plan)
+- `g.user` populated every request via `load_user()`, includes `first_name`, `last_name`, passed to templates as `user`
+- Logging via Python `logging` module (`logger = logging.getLogger('flask_golf')`)
 - Security events logged to `security_events` table
+- Templates extend `base.html` — nav, footer, Tailwind config are shared. Use `{% set show_nav = true %}` and `{% set active_tab = '...' %}` for authenticated pages
+- Session cleanup is probabilistic (~1% of authenticated requests)
 
 ## Workflow
 
