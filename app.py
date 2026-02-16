@@ -73,6 +73,29 @@ _cache = {}
 # Database Connection
 # =============================================================================
 
+class LibSQLConnectionWrapper:
+    """Wrapper that auto-converts list params to tuples for libsql compatibility."""
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, sql, parameters=None):
+        if parameters is not None and isinstance(parameters, list):
+            parameters = tuple(parameters)
+        if parameters is not None:
+            return self._conn.execute(sql, parameters)
+        return self._conn.execute(sql)
+
+    def executescript(self, sql):
+        return self._conn.executescript(sql)
+
+    def commit(self):
+        return self._conn.commit()
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+
 def get_db():
     """Get database connection."""
     if 'db' not in g:
@@ -80,9 +103,10 @@ def get_db():
         auth_token = os.getenv('TURSO_AUTH_TOKEN', '')
 
         if db_url.startswith('file:'):
-            g.db = libsql.connect(db_url.replace('file:', ''))
+            conn = libsql.connect(db_url.replace('file:', ''))
         else:
-            g.db = libsql.connect(db_url, auth_token=auth_token)
+            conn = libsql.connect(db_url, auth_token=auth_token)
+        g.db = LibSQLConnectionWrapper(conn)
     return g.db
 
 
