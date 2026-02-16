@@ -74,8 +74,7 @@
          onclick="toggleContent(this)"
          aria-expanded="false"
          role="button"
-         data-team="{{ row.ENTRY_NAME }}"
-         data-delay="{{ loop.index0 * 0.05 }}">
+         data-team="{{ row.ENTRY_NAME }}">
 
         <!-- Card Header -->
         <div class="flex items-center p-4 cursor-pointer">
@@ -115,9 +114,10 @@
             <div class="flex items-center space-x-2 flex-shrink-0">
                 <div class="text-right">
                     <div class="text-xl sm:text-2xl font-bold
-                                {% if row.TEAM_SCORE < 0 %}text-golf-green-500
+                                {% if row.TEAM_SCORE < 0 %}text-golf-green-400
+                                {% elif row.TEAM_SCORE == 0 %}text-gray-300
                                 {% else %}text-red-400{% endif %}">
-                        {{ row.TEAM_SCORE }}
+                        {% if row.TEAM_SCORE < 0 %}{{ row.TEAM_SCORE }}{% elif row.TEAM_SCORE == 0 %}E{% else %}+{{ row.TEAM_SCORE }}{% endif %}
                     </div>
                 </div>
                 <svg class="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 group-hover:text-gray-300 transform transition-transform duration-200 expand-arrow"
@@ -136,14 +136,18 @@
                     {% set player_name = selection.strip() %}
                     {% set player_data = player_scores.get(player_name, {}) %}
                     {% set player_status = player_data.get('status', '') %}
+                    {% set player_score = player_data.get('score', None) %}
                     {% set missed_cut = (player_status|string|lower == 'cut') %}
-                    <span class="player-chip inline-flex items-center px-3 py-1 rounded-full text-xs sm:text-sm font-medium cursor-pointer transition-all duration-200 transform hover:scale-105 relative{{ ' missed-cut' if missed_cut else '' }}"
+                    <span class="player-chip inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium cursor-pointer transition-all duration-200 relative{{ ' missed-cut' if missed_cut else '' }}"
                           data-player="{{ player_name }}"
                           data-team="{{ row.ENTRY_NAME }}"
                           data-missed-cut="{{ 'true' if missed_cut else 'false' }}"
                           data-status="{{ player_status }}"
-                          title="{{ player_name }} - Status: {{ player_status or 'Unknown' }}">
+                          title="{{ player_name }} - Score: {{ player_score if player_score is not none else 'N/A' }}">
                         {{ player_name }}
+                        {% if player_score is not none %}
+                        <span class="opacity-75 text-[11px]">({% if player_score|int < 0 %}{{ player_score|int }}{% elif player_score|int == 0 %}E{% else %}+{{ player_score|int }}{% endif %})</span>
+                        {% endif %}
                     </span>
                     {% endfor %}
                 </div>
@@ -248,9 +252,15 @@
         bindChips();
         const observer = new MutationObserver(() => setTimeout(bindChips, 50));
         document.querySelectorAll('.card-content').forEach(c => observer.observe(c, { attributes: true, attributeFilter: ['style'] }));
-        document.querySelectorAll('.team-card[data-delay]').forEach(card => {
-            card.style.animationDelay = `${parseFloat(card.dataset.delay) * 1000}ms`;
-        });
+
+        // Auto-expand all cards on desktop
+        if (window.innerWidth >= 768) {
+            document.querySelectorAll('.team-card').forEach(card => toggleContent(card));
+            const toggle = document.getElementById('expandToggle');
+            toggle.classList.add('collapse-mode');
+            toggle.querySelector('.expand-icon').classList.add('hidden');
+            toggle.querySelector('.collapse-icon').classList.remove('hidden');
+        }
     });
 </script>
 {% endblock %}
