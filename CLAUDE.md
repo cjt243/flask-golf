@@ -62,7 +62,7 @@ Turso/libSQL via `libsql_experimental`. The `LibSQLConnectionWrapper` auto-conve
 
 **User names**: `users` and `access_requests` tables have `first_name` + `last_name` columns (split from legacy `display_name`). Leaderboard shows "First L." under entry names.
 
-**Migrations**: `_run_migrations()` in `init_db()` handles ALTER TABLE additions. `CREATE TABLE IF NOT EXISTS` won't add columns — use the migration list for schema changes.
+**Migrations**: `_run_migrations()` runs on every app startup (at module level, not just via CLI). It handles ALTER TABLE additions. `CREATE TABLE IF NOT EXISTS` won't add columns — use the migration list for schema changes.
 
 ### Golf API
 
@@ -84,9 +84,46 @@ In-memory dict, 5-minute TTL, per-worker (not shared). Cleared on pick submissio
 - Templates extend `base.html` — nav, footer, Tailwind config are shared. Use `{% set show_nav = true %}` and `{% set active_tab = '...' %}` for authenticated pages
 - Session cleanup is probabilistic (~1% of authenticated requests)
 
+## Testing
+
+### Critical: Use `uv run` for ALL Python commands
+
+**Never use bare `python`, `python3`, or `source .venv/bin/activate`.** Always prefix with `uv run`:
+```bash
+uv run python app.py          # Run the app
+uv run python /tmp/script.py   # Run any script
+uv run flask init-db           # Flask CLI commands
+uv pip install -r requirements.txt  # Install deps
+```
+
+### Testing authenticated routes
+
+The app connects to **production Turso DB** even in local dev (same instance). Key implications:
+
+- **Session cookie name**: `golf_session` (not `session_token`)
+- **Only registered user**: `cullin.tripp@gmail.com` (admin)
+- **Magic links sent via email** when `RESEND_API_KEY` is set (which it is in `.env`). They only print to console when the key is **not** set.
+- **To test authenticated routes in Playwright**, create a session directly in the DB:
+  ```python
+  import hashlib, secrets
+  raw_token = secrets.token_hex(32)
+  token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+  db.execute("INSERT INTO sessions (id, user_id, session_token_hash, expires_at) VALUES (?, ?, ?, ?)",
+             (session_id, user_id, token_hash, expires_at))
+  # Then set cookie: {"name": "golf_session", "value": raw_token, "domain": "127.0.0.1", "path": "/"}
+  ```
+- **Clean up test sessions** after tests to avoid DB clutter.
+- **CSRF tokens** are Flask session-bound. The `requests` library doesn't maintain Flask sessions properly — use Playwright for any flow involving CSRF forms.
+
+### Server startup for tests
+
+- Use `with_server.py` helper for simple page screenshots: `uv run python scripts/with_server.py --server "uv run flask run" --port 5000 -- uv run python test.py`
+- For authenticated tests that need DB access, start the server via `subprocess.Popen` and use `requests` to poll `/health` until ready.
+- **Kill port 5000** between test runs: `lsof -ti:5000 | xargs -r kill -9`
+- `config.py` (gitignored) overrides env vars set by `.env` — removing a var from subprocess env won't help if `config.py` re-sets it.
+
 ## Workflow
 
 - **After every phase**: Update Progress Tracker in `PRODUCTION_PLAN.md`, commit changes
 - **Commits**: Descriptive messages, reference the phase (e.g., "Phase 1: Secure /clear_cache route")
-- **Testing**: Run dev server, test affected routes. No test suite yet (Phase 4)
 - **No linter/formatter configured** — match existing code style
