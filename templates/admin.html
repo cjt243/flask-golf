@@ -55,6 +55,27 @@
             </div>
         </div>
 
+        <!-- Registration Toggle -->
+        <div class="mb-6 p-4 rounded-lg bg-gray-800 border border-gray-700">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <div class="w-3 h-3 rounded-full {% if registration_open %}bg-green-500{% else %}bg-red-500{% endif %} mr-3"></div>
+                    <span class="text-sm font-medium text-white">
+                        Registration: {% if registration_open %}Open{% else %}Closed{% endif %}
+                    </span>
+                    <span class="ml-2 text-xs text-gray-400">
+                        {% if registration_open %}New users can request access{% else %}Access request form is hidden{% endif %}
+                    </span>
+                </div>
+                <form action="/admin/toggle-registration" method="POST" class="inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="px-3 py-1.5 text-xs {% if registration_open %}bg-yellow-600 hover:bg-yellow-500{% else %}bg-green-600 hover:bg-green-500{% endif %} text-white rounded transition-colors">
+                        {% if registration_open %}Close{% else %}Open{% endif %} Registration
+                    </button>
+                </form>
+            </div>
+        </div>
+
         <!-- Pending Access Requests -->
         {% if access_requests %}
         <section class="mb-10">

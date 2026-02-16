@@ -244,6 +244,19 @@ def csrf_required(f):
 
 
 # =============================================================================
+# App Settings
+# =============================================================================
+
+def is_registration_open():
+    """Check if registration is open (default: True)."""
+    try:
+        db = get_db()
+        row = db.execute("SELECT value FROM app_settings WHERE key = 'registration_open'").fetchone()
+        return row[0] != '0' if row else True
+    except Exception:
+        return True
+
+
 # Rate Limiting
 # =============================================================================
 
@@ -900,7 +913,8 @@ def auth_login():
     """Login page."""
     if g.user:
         return redirect(url_for('make_picks'))
-    return render_template('login.html', error=request.args.get('error'))
+    return render_template('login.html', error=request.args.get('error'),
+                           registration_open=is_registration_open())
 
 
 @app.route('/auth/request-link', methods=['POST'])
@@ -1048,6 +1062,8 @@ def auth_request_access():
     """Request access form."""
     if g.user:
         return redirect(url_for('leaderboard'))
+    if not is_registration_open():
+        return redirect(url_for('auth_login'))
     return render_template('request_access.html')
 
 
@@ -1055,6 +1071,9 @@ def auth_request_access():
 @csrf_required
 def auth_submit_access_request():
     """Submit access request."""
+    if not is_registration_open():
+        return redirect(url_for('auth_login'))
+
     email = validate_user_email(request.form.get('email', ''))
     display_name = request.form.get('display_name', '').strip()
 
@@ -1467,6 +1486,8 @@ def admin_dashboard():
         'created_at': r[3]
     } for r in pending_requests]
 
+    registration_open = is_registration_open()
+
     return render_template('admin.html',
                          tournaments=tournament_list,
                          schedule=schedule,
@@ -1474,6 +1495,7 @@ def admin_dashboard():
                          org_id=org_id,
                          api_connected=api_connected,
                          access_requests=access_requests,
+                         registration_open=registration_open,
                          user=g.user)
 
 
@@ -1659,6 +1681,21 @@ def admin_reject_user():
 
     log_security_event('access_rejected', request, user_id=g.user['id'], email=access_req[1])
 
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/toggle-registration', methods=['POST'])
+@admin_required
+@csrf_required
+def admin_toggle_registration():
+    """Toggle registration open/closed."""
+    db = get_db()
+    current = is_registration_open()
+    new_value = '0' if current else '1'
+    db.execute("""
+        INSERT OR REPLACE INTO app_settings (key, value) VALUES ('registration_open', ?)
+    """, [new_value])
+    db.commit()
     return redirect(url_for('admin_dashboard'))
 
 

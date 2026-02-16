@@ -130,6 +130,12 @@ CREATE TABLE IF NOT EXISTS access_requests (
 CREATE INDEX IF NOT EXISTS idx_access_requests_status ON access_requests(status);
 CREATE INDEX IF NOT EXISTS idx_access_requests_email ON access_requests(email);
 
+-- App settings (key-value store)
+CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
 -- Failed login tracking
 CREATE TABLE IF NOT EXISTS failed_logins (
     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
