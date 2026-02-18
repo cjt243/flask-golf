@@ -7,6 +7,8 @@ services:
   instance_size_slug: basic-xxs
   instance_count: 1
   http_port: 8080
+  health_check:
+    http_path: /health
   run_command: gunicorn --worker-tmp-dir /dev/shm --config gunicorn_config.py app:app
   envs:
   # Turso Database

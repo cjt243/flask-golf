@@ -213,6 +213,22 @@ def set_cache(key, data):
 # =============================================================================
 
 @app.after_request
+def log_request(response):
+    if request.path == '/health' or request.path == '/favicon.ico':
+        return response
+    duration = time.time() - g.get('request_start_time', time.time())
+    if response.status_code >= 500:
+        logger.error("%(method)s %(path)s %(status)s %(duration).0fms",
+                     {'method': request.method, 'path': request.path,
+                      'status': response.status_code, 'duration': duration * 1000})
+    elif duration > 2.0:
+        logger.warning("Slow request: %(method)s %(path)s %(status)s %(duration).0fms",
+                       {'method': request.method, 'path': request.path,
+                        'status': response.status_code, 'duration': duration * 1000})
+    return response
+
+
+@app.after_request
 def add_security_headers(response):
     """Add security headers to every response."""
     response.headers['X-Frame-Options'] = 'DENY'
@@ -234,6 +250,11 @@ def add_security_headers(response):
     if not app.debug:
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     return response
+
+
+@app.before_request
+def start_request_timer():
+    g.request_start_time = time.time()
 
 
 @app.before_request
@@ -1880,6 +1901,13 @@ def not_found(e):
 
 @app.errorhandler(500)
 def server_error(e):
+    logger.exception("Unhandled 500 error: %s", e)
+    return render_template('error.html', message='An unexpected error occurred.'), 500
+
+
+@app.errorhandler(Exception)
+def unhandled_exception(e):
+    logger.exception("Unhandled exception: %s", e)
     return render_template('error.html', message='An unexpected error occurred.'), 500
 
 

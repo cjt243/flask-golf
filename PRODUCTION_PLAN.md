@@ -364,5 +364,5 @@ _Update this section after completing each phase._
 | Phase 2 — Operational Basics | **Complete** | 2026-02-16 | Replaced all print() with logging, migration system (done in 1.5), probabilistic session cleanup, /api/auto-refresh endpoint, favicon route |
 | Phase 3 — UI/UX Refresh | **Complete** | 2026-02-16 | base.html + refactor (-719 lines), DM Serif Display + DM Sans typography, turf-green gradient + card-glow theme, leaderboard score formatting + auto-expand desktop + player scores in chips, pick form confirmation dialog + double-submit fix + prominent warning, admin Delete button separated |
 | Phase 4 — Testing | Not started | | |
-| Phase 5 — Monitoring | Not started | | |
+| Phase 5 — Monitoring | **Complete** | 2026-02-17 | Enhanced 500 handler with logger.exception, unhandled exception handler, request timing (before_request), slow request + 5xx logging (after_request), DO health check config (.do/app.yaml + deploy.template.yaml) |
 | Phase 6 — Merge & Deploy | Not started | | |
