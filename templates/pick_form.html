@@ -10,6 +10,7 @@
         /* Custom styles for Choices.js dark theme */
         .choices {
             margin-bottom: 0;
+            position: relative;
         }
         .choices__inner {
             background-color: #374151 !important;
@@ -28,6 +29,9 @@
             border: 1px solid #4b5563 !important;
             border-radius: 0.5rem !important;
             max-height: 200px !important;
+            overflow-y: auto !important;
+            overscroll-behavior: contain;
+            z-index: 20;
         }
         .choices__item--selectable {
             color: #f9fafb !important;
