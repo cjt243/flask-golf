@@ -10,8 +10,7 @@ Reference for runtime environments, configuration, and deployment.
 | `.do/app.yaml` | Yes | DigitalOcean App Platform deploy spec | DO dashboard import |
 | `.do/deploy.template.yaml` | Yes | DO deploy template (alternative format) | DO dashboard import |
 | `gunicorn_config.py` | Yes | Gunicorn settings (port 8080, 2 workers) | `gunicorn --config` flag |
-| `runtime.txt` | Yes | Python version for platform builds | Heroku/DO buildpack |
-| `Procfile.txt` | Yes | Heroku process definition | Heroku |
+| `runtime.txt` | Yes | Python version for platform builds | DO buildpack |
 
 **Load order**: `app.py` calls `load_dotenv()` at the top, before Flask app creation. This loads `.env` regardless of how the app is started (`python app.py`, `flask run`, or `gunicorn`).
 
