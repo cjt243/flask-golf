@@ -1,142 +1,129 @@
 # CLAUDE.md
 
+## Start Here
+
+**You MUST read these two files at the start of every session:**
+
+1. **[`QUICKSTART.md`](QUICKSTART.md)** — Runtime environments, env vars, config files, service dashboards, deployment. This is your operational reference.
+2. **[`PRODUCTION_PLAN.md`](PRODUCTION_PLAN.md)** — Master implementation plan with prioritized work items (P0-P3), UI/UX review, and phased execution order. **Update its Progress Tracker after completing each phase.**
+
 ## Project Overview
 
-Flask Golf is a web application for a fantasy golf league. It displays leaderboards, player standings, and allows users to submit golfer picks. Data is stored in Snowflake and accessed via the Snowpark Python API. The frontend uses Tailwind CSS with a dark theme.
+Flask Golf is a single-file Flask web app for a fantasy golf league ("80 Yard Bombs Cup"). Users authenticate via magic link email, submit golfer picks for active tournaments, and view leaderboards/standings.
 
-## Tech Stack
-
-- **Python 3.10** (see `runtime.txt`)
-- **Flask 3.0.3** with Jinja2 templates
-- **Snowflake** via `snowflake-snowpark-python` and `snowflake-connector-python`
-- **Pandas** for data manipulation
-- **Tailwind CSS** (CDN) for frontend styling
-- **Choices.js** (CDN) for dropdown components
-- **Gunicorn** for production WSGI serving
-- **Flask-Compress** for HTTP response compression
-
-## Repository Structure
-
-```
-flask-golf/
-├── app.py                  # Main Flask application (all routes + helpers)
-├── gunicorn_config.py      # Gunicorn production config (port 8080, 2 workers)
-├── requirements.txt        # Pinned Python dependencies
-├── runtime.txt             # Python version (3.10.14)
-├── Procfile.txt            # Heroku deployment entry point
-├── .do/                    # DigitalOcean App Platform deployment configs
-│   ├── app.yaml
-│   └── deploy.template.yaml
-├── templates/              # Jinja2 HTML templates
-│   ├── leaderboard.html    # Entry-focused leaderboard (main page)
-│   ├── player_standings.html # Individual golfer standings
-│   ├── pick_form.html      # Golfer pick submission form
-│   └── submit_success.html # Post-submission confirmation
-├── .gitignore
-├── LICENSE                 # MIT
-└── README.md
-```
-
-This is a single-file Flask app — all routes, helpers, and configuration live in `app.py`. There is no package structure, no `__init__.py`, and no separate modules.
+**Stack**: Python 3.12 / Flask 3.0.3 / Turso (libSQL) / Resend / Tailwind CSS (CDN) / Gunicorn
+**Deploy**: DigitalOcean App Platform, auto-deploys from `main`
+**Branch**: `feature/turso-migration-magic-auth` — active dev branch, merges to `main` for deploy
 
 ## Architecture
 
-### Application Entry Point
+**Single-file app** — all routes, helpers, and config live in `app.py`. No package structure, no `__init__.py`.
 
-`app.py` is both the module and the application. The Flask app instance is `app`. Run locally with `python app.py` (debug mode) or in production with gunicorn via `gunicorn --config gunicorn_config.py app:app`.
+| File | Purpose |
+|------|---------|
+| `app.py` | Entire application |
+| `schema.sql` | Database schema (Turso/libSQL) |
+| `templates/base.html` | Shared layout: nav, footer, Tailwind config, typography |
+| `templates/*.html` | 11 Jinja2 templates — all extend `base.html` |
+| `gunicorn_config.py` | Production server config (port 8080, 2 workers) |
+| `requirements.txt` | Pinned Python dependencies |
+| `.env` | Local dev env vars (gitignored) |
+| `PRODUCTION_PLAN.md` | Master plan — bugs, features, UI refresh, phased implementation |
 
 ### Routes
 
-| Route | Method | Function | Description |
-|-------|--------|----------|-------------|
-| `/` | GET | `leaderboard()` | Main leaderboard showing fantasy league entry standings |
-| `/players` | GET | `player_standings()` | Individual golfer performance table |
-| `/make_picks` | GET | `make_picks()` | Pick submission form with tiered golfer dropdowns |
-| `/submit_picks` | POST | `submit_picks()` | Processes pick submissions, writes to Snowflake |
-| `/health` | GET | `health_check()` | Returns JSON health status and cache metrics |
-| `/clear_cache` | GET | `clear_cache()` | Clears all in-memory cached data |
+| Route | Auth | Purpose |
+|-------|------|---------|
+| `/` | Login | Leaderboard |
+| `/players` | Login | Player standings |
+| `/make_picks` | Login | Pick submission form |
+| `/submit_picks` | Login+CSRF | Process pick submission |
+| `/auth/login` | Public | Magic link login |
+| `/auth/request-link` | CSRF | Send magic link email |
+| `/auth/verify` | Public | Verify magic link token |
+| `/auth/logout` | CSRF | Destroy session |
+| `/auth/request-access` | Public | Invite-only registration form |
+| `/auth/submit-access-request` | CSRF | Submit access request |
+| `/admin` + sub-routes | Admin | Tournament management, user approval |
+| `/health` | Public | Health check JSON |
+| `/clear_cache` | Admin | Clear in-memory cache |
+| `/api/auto-refresh` | API Key/Admin | Automated golfer score refresh (POST) |
+| `/favicon.ico` | Public | SVG favicon (7-day cache) |
+
+### Auth
+
+Magic link email → Argon2-hashed tokens → SHA-256 session cookies (7-day expiry). Sessions in `sessions` table. Decorators: `@login_required`, `@admin_required`, `@csrf_required`. Admin status from `ADMIN_EMAILS` env var.
+
+### Database
+
+Turso/libSQL via `libsql_experimental`. The `LibSQLConnectionWrapper` auto-converts list params to tuples. All queries use parameterized SQL (no ORM).
+
+**Tables**: `users`, `auth_tokens`, `sessions`, `tournaments`, `entries`, `golfers`, `tournament_metadata`, `rate_limits`, `security_events`, `access_requests`, `app_settings`, `failed_logins`
+
+**User names**: `users` and `access_requests` tables have `first_name` + `last_name` columns (split from legacy `display_name`). Leaderboard shows "First L." under entry names.
+
+**Migrations**: `_run_migrations()` runs on every app startup (at module level, not just via CLI). It handles ALTER TABLE additions. `CREATE TABLE IF NOT EXISTS` won't add columns — use the migration list for schema changes.
+
+### Golf API
+
+Slash Golf API via RapidAPI (`live-golf-data.p.rapidapi.com`). Endpoints: `/schedule`, `/leaderboard` (key: `leaderboardRows`), `/tournament` (key: `players`). Some fields use MongoDB-style `{"$numberInt": "4"}` — handled by `_api_int()`. Refresh via admin panel or `POST /api/auto-refresh` (X-API-Key header auth, reuses GOLF_API_KEY).
 
 ### Caching
 
-- **Snowpark session cache**: Global singleton session with 1-hour timeout (`SESSION_TIMEOUT = 3600`). Sessions are reused across requests, not closed after each one.
-- **Data cache**: In-memory dict with 5-minute TTL (`CACHE_TTL = 300`). Cache keys: `leaderboard_data`, `player_standings_data`, `pick_options_data`.
-
-### Snowflake Authentication
-
-Two authentication methods, selected automatically:
-1. **Key-pair auth** (production): Uses `SNOWFLAKE_PRIVATE_KEY` env var (base64-encoded PEM private key), authenticates via `SNOWFLAKE_JWT`.
-2. **Password auth** (local dev): Falls back to `SNOWFLAKE_PASSWORD` if no private key is set.
-
-Configuration can come from environment variables or a local `config.py` file (gitignored).
-
-### Database Schema
-
-All queries target the `GOLF_LEAGUE` database:
-
-- `APPLICATION.LEADERBOARD_DISPLAY_DETAILED_VW` — aggregated entry standings
-- `APPLICATION.PLAYER_FOCUSED_LEADERBOARD_VW` — individual golfer scores
-- `APPLICATION.LATEST_LEADERBOARD_UPDATE_VW` — last-updated timestamps
-- `APPLICATION.PICK_OPTIONS_VW` — available golfers for picking
-- `APPLICATION.POOL_STAGING` — pick submissions (write target)
-- `FANTASY_LEAGUE_DATA.TOURNAMENT_CONFIG` — active tournament configuration
-- `PRO_GOLF_DATA.LEADERBOARD` — raw leaderboard data
-- `PRO_GOLF_DATA.TOURNAMENT_SCHEDULE` — tournament metadata
-
-### Tournament Resolution
-
-The app determines which tournament to display through a fallback chain:
-1. Query `TOURNAMENT_CONFIG` for `IS_ACTIVE = TRUE`
-2. Verify that tournament has leaderboard data
-3. If no active config or no data, fall back to the tournament with the most recent leaderboard update
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SNOWFLAKE_ACCOUNT` | Yes | Snowflake account identifier |
-| `SNOWFLAKE_USER` | Yes | Snowflake username |
-| `SNOWFLAKE_ROLE` | Yes | Snowflake role |
-| `SNOWFLAKE_WAREHOUSE` | Yes | Snowflake compute warehouse |
-| `SNOWFLAKE_DATABASE` | Yes | Database name (`GOLF_LEAGUE`) |
-| `SNOWFLAKE_SCHEMA` | Yes | Schema name (`APPLICATION`) |
-| `SNOWFLAKE_PRIVATE_KEY` | Prod | Base64-encoded private key for JWT auth |
-| `SNOWFLAKE_PASSWORD` | Dev | Password for local testing (fallback) |
-| `SNOWFLAKE_QUERY_TAG` | No | Optional query tracking tag |
-
-For local development, these can be defined in a `config.py` file at the project root (gitignored).
-
-## Development Setup
-
-```bash
-# Use Python 3.10
-pip install -r requirements.txt
-
-# Set Snowflake credentials via environment or config.py
-python app.py  # Runs Flask dev server
-```
-
-## Production Deployment
-
-```bash
-gunicorn --worker-tmp-dir /dev/shm --config gunicorn_config.py app:app
-```
-
-Deployment is configured for **Heroku** (`Procfile.txt`, `runtime.txt`) and **DigitalOcean App Platform** (`.do/` directory).
-
-## Testing
-
-No test suite exists. There are no test files, test frameworks, or CI/CD pipelines configured.
-
-## Linting / Formatting
-
-No linting or formatting tools are configured. There is no `pyproject.toml`, `.flake8`, or pre-commit hook setup.
+In-memory dict, 5-minute TTL, per-worker (not shared). Cleared on pick submission, tournament activation, golfer refresh.
 
 ## Key Conventions
 
-- All application logic is in `app.py` — keep it as a single-file app unless there's a strong reason to split.
-- Templates live in `templates/` and use Tailwind CSS via CDN (no build step).
-- Snowflake queries use both the Snowpark DataFrame API (`session.table().select()`) and raw SQL (`session.sql()`).
-- Timestamps are converted from UTC to US/Eastern for display.
-- The pick form divides golfers into three tiers by rank: top 5, next 11, and the rest.
-- Error handling uses try-except with fallback values and `print()` for logging.
-- No API authentication is implemented — routes are publicly accessible.
+- Single-file app — keep it that way unless there's a strong reason to split
+- DB params as lists — wrapper converts to tuples
+- All POST routes require CSRF
+- Timestamps: ISO UTC in DB, US/Eastern for display
+- `g.user` populated every request via `load_user()`, includes `first_name`, `last_name`, passed to templates as `user`
+- Logging via Python `logging` module (`logger = logging.getLogger('flask_golf')`)
+- Security events logged to `security_events` table
+- Templates extend `base.html` — nav, footer, Tailwind config are shared. Use `{% set show_nav = true %}` and `{% set active_tab = '...' %}` for authenticated pages
+- Session cleanup is probabilistic (~1% of authenticated requests)
+
+## Testing
+
+### Critical: Use `uv run` for ALL Python commands
+
+**Never use bare `python`, `python3`, or `source .venv/bin/activate`.** Always prefix with `uv run`:
+```bash
+uv run python app.py          # Run the app
+uv run python /tmp/script.py   # Run any script
+uv run flask init-db           # Flask CLI commands
+uv pip install -r requirements.txt  # Install deps
+```
+
+### Testing authenticated routes
+
+The app connects to **production Turso DB** even in local dev (same instance). Key implications:
+
+- **Session cookie name**: `golf_session` (not `session_token`)
+- **Only registered user**: `cullin.tripp@gmail.com` (admin)
+- **Magic links sent via email** when `RESEND_API_KEY` is set (which it is in `.env`). They only print to console when the key is **not** set.
+- **To test authenticated routes in Playwright**, create a session directly in the DB:
+  ```python
+  import hashlib, secrets
+  raw_token = secrets.token_hex(32)
+  token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+  db.execute("INSERT INTO sessions (id, user_id, session_token_hash, expires_at) VALUES (?, ?, ?, ?)",
+             (session_id, user_id, token_hash, expires_at))
+  # Then set cookie: {"name": "golf_session", "value": raw_token, "domain": "127.0.0.1", "path": "/"}
+  ```
+- **Clean up test sessions** after tests to avoid DB clutter.
+- **CSRF tokens** are Flask session-bound. The `requests` library doesn't maintain Flask sessions properly — use Playwright for any flow involving CSRF forms.
+
+### Server startup for tests
+
+- Use `with_server.py` helper for simple page screenshots: `uv run python scripts/with_server.py --server "uv run flask run" --port 5000 -- uv run python test.py`
+- For authenticated tests that need DB access, start the server via `subprocess.Popen` and use `requests` to poll `/health` until ready.
+- **Kill port 5000** between test runs: `lsof -ti:5000 | xargs -r kill -9`
+- `load_dotenv()` is called explicitly at the top of `app.py` so `.env` is loaded regardless of how the app is started (`python app.py`, `flask run`, or `gunicorn`).
+
+## Workflow
+
+- **After every phase**: Update Progress Tracker in `PRODUCTION_PLAN.md`, commit changes
+- **Commits**: Descriptive messages, reference the phase (e.g., "Phase 1: Secure /clear_cache route")
+- **No linter/formatter configured** — match existing code style

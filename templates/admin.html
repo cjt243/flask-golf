@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% set show_nav = true %}
+{% set active_tab = 'admin' %}
+
+{% block title %}Admin - 80 Yard Bombs{% endblock %}
+
+{% block main_class %}max-w-6xl mx-auto px-4 py-8{% endblock %}
+
+{% block content %}
+        <!-- Admin Dashboard Header -->
+        <div class="mb-6">
+            <h1 class="font-display text-2xl text-white">Admin Dashboard</h1>
+            <p class="text-sm text-gray-400 mt-1">Tournament Management</p>
+        </div>
+
+        <!-- API Status -->
+        <div class="mb-6 p-4 rounded-lg {% if api_connected %}bg-green-900/30 border border-green-700{% else %}bg-red-900/30 border border-red-700{% endif %}">
+            <div class="flex items-center">
+                <div class="w-3 h-3 rounded-full {% if api_connected %}bg-green-500{% else %}bg-red-500{% endif %} mr-3"></div>
+                <span class="text-sm">
+                    {% if api_connected %}
+                        Golf API Connected
+                    {% else %}
+                        Golf API Not Connected - Add GOLF_API_KEY to .env
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+
+        <!-- Registration Toggle -->
+        <div class="mb-6 p-4 rounded-lg bg-gray-800 border border-gray-700">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <div class="w-3 h-3 rounded-full {% if registration_open %}bg-green-500{% else %}bg-red-500{% endif %} mr-3"></div>
+                    <span class="text-sm font-medium text-white">
+                        Registration: {% if registration_open %}Open{% else %}Closed{% endif %}
+                    </span>
+                    <span class="ml-2 text-xs text-gray-400">
+                        {% if registration_open %}New users can request access{% else %}Access request form is hidden{% endif %}
+                    </span>
+                </div>
+                <form action="/admin/toggle-registration" method="POST" class="inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="px-3 py-1.5 text-xs {% if registration_open %}bg-yellow-600 hover:bg-yellow-500{% else %}bg-green-600 hover:bg-green-500{% endif %} text-white rounded transition-colors">
+                        {% if registration_open %}Close{% else %}Open{% endif %} Registration
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Pending Access Requests -->
+        {% if access_requests %}
+        <section class="mb-10">
+            <h2 class="text-xl font-semibold mb-4 text-white">Pending Access Requests</h2>
+            <div class="bg-gray-800 rounded-lg border border-yellow-600 overflow-hidden">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-700/50">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-medium text-gray-300">Name</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-300">Email</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-300">Requested</th>
+                            <th class="px-4 py-3 text-right font-medium text-gray-300">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-700">
+                        {% for req in access_requests %}
+                        <tr class="hover:bg-gray-700/30">
+                            <td class="px-4 py-3 font-medium text-white">{{ req.display_name }}</td>
+                            <td class="px-4 py-3 text-gray-400">{{ req.email }}</td>
+                            <td class="px-4 py-3 text-gray-400">{{ req.created_at }}</td>
+                            <td class="px-4 py-3 text-right">
+                                <div class="flex items-center justify-end space-x-2">
+                                    <form action="/admin/approve-user" method="POST" class="inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <input type="hidden" name="request_id" value="{{ req.id }}">
+                                        <button type="submit" class="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-500 text-white rounded transition-colors">
+                                            Approve
+                                        </button>
+                                    </form>
+                                    <form action="/admin/reject-user" method="POST" class="inline" onsubmit="return confirm('Reject access request from {{ req.display_name }}?')">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <input type="hidden" name="request_id" value="{{ req.id }}">
+                                        <button type="submit" class="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-500 text-white rounded transition-colors">
+                                            Reject
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Existing Tournaments -->
+        <section class="mb-10">
+            <h2 class="text-xl font-semibold mb-4 text-white">Your Tournaments</h2>
+
+            {% if tournaments %}
+            <div class="space-y-3">
+                {% for t in tournaments %}
+                <div class="bg-gray-800 rounded-lg p-4 border {% if t.is_active %}border-green-500{% else %}border-gray-700{% endif %}">
+                    <div class="flex items-center space-x-2 mb-2">
+                        <h3 class="font-semibold text-white">{{ t.name }}</h3>
+                        {% if t.is_active %}
+                        <span class="px-2 py-0.5 text-xs bg-green-600 text-white rounded">Active</span>
+                        {% endif %}
+                        {% if t.picks_locked %}
+                        <span class="px-2 py-0.5 text-xs bg-yellow-600 text-white rounded">Picks Locked</span>
+                        {% endif %}
+                    </div>
+                    <p class="text-sm text-gray-400 mb-3">
+                        ID: {{ t.external_id }} &bull; Season: {{ t.season_year }} &bull;
+                        {{ t.entry_count }} entries &bull; {{ t.golfer_count }} golfers
+                    </p>
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <!-- Refresh Golfers -->
+                            <form action="/admin/refresh-golfers" method="POST" class="inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="tournament_id" value="{{ t.id }}">
+                                <button type="submit" class="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors" title="Fetch latest golfer data from API">
+                                    Refresh
+                                </button>
+                            </form>
+
+                            <!-- Toggle Picks Lock -->
+                            <form action="/admin/toggle-picks-lock" method="POST" class="inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="tournament_id" value="{{ t.id }}">
+                                <button type="submit" class="px-3 py-1.5 text-xs {% if t.picks_locked %}bg-yellow-600 hover:bg-yellow-500{% else %}bg-gray-600 hover:bg-gray-500{% endif %} text-white rounded transition-colors">
+                                    {% if t.picks_locked %}Unlock{% else %}Lock{% endif %} Picks
+                                </button>
+                            </form>
+
+                            <!-- Activate -->
+                            {% if not t.is_active %}
+                            <form action="/admin/activate-tournament" method="POST" class="inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="tournament_id" value="{{ t.id }}">
+                                <button type="submit" class="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-500 text-white rounded transition-colors">
+                                    Activate
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+
+                        <!-- Delete (separated from other actions) -->
+                        <form action="/admin/delete-tournament" method="POST" class="inline" onsubmit="return confirm('Delete {{ t.name }}? This will remove all entries and golfer data.')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="tournament_id" value="{{ t.id }}">
+                            <button type="submit" class="px-3 py-1.5 text-xs bg-transparent border border-red-600/50 text-red-400 hover:bg-red-600 hover:text-white rounded transition-colors">
+                                Delete
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="bg-gray-800 rounded-lg p-6 text-center border border-gray-700">
+                <p class="text-gray-400">No tournaments yet. Create one from the schedule below.</p>
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- API Schedule -->
+        <section>
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-semibold text-white">{{ year }} Tournament Schedule</h2>
+
+                <!-- Year/Tour selector -->
+                <form method="GET" class="flex items-center space-x-2">
+                    <select name="year" class="px-3 py-1.5 text-sm bg-gray-700 border border-gray-600 rounded text-white">
+                        {% for y in range(year - 1, year + 2) %}
+                        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                    <select name="org" class="px-3 py-1.5 text-sm bg-gray-700 border border-gray-600 rounded text-white">
+                        <option value="1" {% if org_id == '1' %}selected{% endif %}>PGA Tour</option>
+                        <option value="2" {% if org_id == '2' %}selected{% endif %}>LIV Golf</option>
+                        <option value="3" {% if org_id == '3' %}selected{% endif %}>DP World Tour</option>
+                    </select>
+                    <button type="submit" class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors">
+                        Load
+                    </button>
+                </form>
+            </div>
+
+            {% if schedule %}
+            <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-700/50">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-medium text-gray-300">Tournament</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-300">ID</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-300">Dates</th>
+                            <th class="px-4 py-3 text-right font-medium text-gray-300">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-700">
+                        {% for event in schedule %}
+                        <tr class="hover:bg-gray-700/30">
+                            <td class="px-4 py-3 font-medium text-white">{{ event.name }}</td>
+                            <td class="px-4 py-3 text-gray-400 font-mono text-xs">{{ event.tournId }}</td>
+                            <td class="px-4 py-3 text-gray-400">
+                                {% if event.start_date != 'TBD' %}
+                                {{ event.start_date }} - {{ event.end_date }}
+                                {% else %}
+                                TBD
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                {% if event.is_future %}
+                                <form action="/admin/create-tournament" method="POST" class="inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="external_id" value="{{ event.tournId }}">
+                                    <input type="hidden" name="name" value="{{ event.name }}">
+                                    <input type="hidden" name="season_year" value="{{ year }}">
+                                    <button type="submit" class="px-3 py-1 text-xs bg-green-600 hover:bg-green-500 text-white rounded transition-colors">
+                                        Create
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% elif api_connected %}
+            <div class="bg-gray-800 rounded-lg p-6 text-center border border-gray-700">
+                <p class="text-gray-400">No tournaments found in the schedule for {{ year }}.</p>
+            </div>
+            {% else %}
+            <div class="bg-gray-800 rounded-lg p-6 text-center border border-gray-700">
+                <p class="text-gray-400">Connect the Golf API to see available tournaments.</p>
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- Manual Create -->
+        <section class="mt-10">
+            <h2 class="text-xl font-semibold mb-4 text-white">Manual Create</h2>
+            <form action="/admin/create-tournament" method="POST" class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Tournament ID</label>
+                        <input type="text" name="external_id" required
+                            class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:outline-none focus:border-green-500"
+                            placeholder="e.g., 014">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm text-gray-400 mb-1">Tournament Name</label>
+                        <input type="text" name="name" required
+                            class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:outline-none focus:border-green-500"
+                            placeholder="e.g., The Genesis Invitational">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Season Year</label>
+                        <input type="number" name="season_year" value="{{ year }}"
+                            class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:outline-none focus:border-green-500">
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <button type="submit" class="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded transition-colors text-sm font-medium">
+                        Create Tournament
+                    </button>
+                </div>
+            </form>
+        </section>
+{% endblock %}

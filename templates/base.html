@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}80 Yard Bombs Cup{% endblock %}</title>
+    <link rel="icon" href="/favicon.ico">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'display': ['DM Serif Display', 'Georgia', 'serif'],
+                        'sans': ['DM Sans', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        'golf-green': {
+                            50: '#f0fdf4',
+                            400: '#4ade80',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                        },
+                        'golf-gold': {
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                        },
+                        'turf': {
+                            900: '#0a1a0f',
+                            800: '#0f2517',
+                            700: '#1a3a25',
+                        }
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-in-out',
+                        'slide-down': 'slideDown 0.3s ease-out',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideDown {
+            from { opacity: 0; max-height: 0; }
+            to { opacity: 1; max-height: 500px; }
+        }
+        .card-glow { box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.08), 0 4px 12px rgba(0,0,0,0.3); }
+    </style>
+    {% block head_extra %}{% endblock %}
+</head>
+
+<body class="text-gray-100 min-h-screen {% block body_class %}flex flex-col{% endblock %}" style="background: linear-gradient(180deg, #0a1a0f 0%, #111827 40%)">
+    {% block header %}
+    <header class="bg-turf-900/80 backdrop-blur-sm border-b border-green-900/40 {% block header_class %}{% endblock %}">
+        <div class="max-w-6xl mx-auto px-4 py-4">
+            {# --- Authenticated nav: tabs + auth controls --- #}
+            {% if show_nav is defined and show_nav %}
+            <div class="flex items-center justify-between">
+                <a href="/" class="font-display text-xl text-golf-gold-400 flex-shrink-0">
+                    80 Yard Bombs Cup
+                </a>
+                <div class="flex items-center space-x-2">
+                    <nav class="flex items-center bg-turf-800 rounded-lg p-1">
+                        <a href="/" class="px-3 py-1.5 text-xs font-medium {{ 'text-white bg-golf-green-600' if active_tab == 'leaderboard' else 'text-gray-300 hover:text-white hover:bg-gray-700' }} rounded-md transition-colors">
+                            Board
+                        </a>
+                        <a href="/players" class="px-3 py-1.5 text-xs font-medium {{ 'text-white bg-golf-green-600' if active_tab == 'players' else 'text-gray-300 hover:text-white hover:bg-gray-700' }} rounded-md transition-colors">
+                            Players
+                        </a>
+                        <a href="/make_picks" class="px-3 py-1.5 text-xs font-medium {{ 'text-white bg-golf-green-600' if active_tab == 'picks' else 'text-gray-300 hover:text-white hover:bg-gray-700' }} rounded-md transition-colors">
+                            Picks
+                        </a>
+                        {% if user and user.is_admin %}
+                        <a href="/admin" class="px-3 py-1.5 text-xs font-medium {{ 'text-white bg-golf-green-600' if active_tab == 'admin' else 'text-gray-300 hover:text-white hover:bg-gray-700' }} rounded-md transition-colors">
+                            Admin
+                        </a>
+                        {% endif %}
+                    </nav>
+                    {% if user %}
+                    <form action="/auth/logout" method="POST" class="inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white bg-gray-700 hover:bg-gray-600 rounded-md transition-colors">
+                            Out
+                        </button>
+                    </form>
+                    {% endif %}
+                    {% block nav_extra %}{% endblock %}
+                </div>
+            </div>
+            {% block nav_subtitle %}{% endblock %}
+
+            {# --- Public/auth pages: brand header only --- #}
+            {% else %}
+            <div class="flex items-center justify-between">
+                <a href="/auth/login" class="font-display text-2xl md:text-3xl text-golf-gold-400">
+                    80 Yard Bombs Cup
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </header>
+    {% endblock %}
+
+    {% block body %}
+    <main class="{% block main_class %}flex-1{% endblock %}">
+        {% block content %}{% endblock %}
+    </main>
+    {% endblock %}
+
+    <footer class="border-t border-gray-800/50 py-4 mt-auto">
+        <div class="max-w-6xl mx-auto px-4 text-center text-xs text-gray-600">
+            80 Yard Bombs Cup &middot; {{ season_year or '2025' }}
+        </div>
+    </footer>
+
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

@@ -4,3 +4,36 @@ services:
   github:
     repo: cjt243/flask-golf
     branch: main
+  instance_size_slug: basic-xxs
+  instance_count: 1
+  http_port: 8080
+  health_check:
+    http_path: /health
+  run_command: gunicorn --worker-tmp-dir /dev/shm --config gunicorn_config.py app:app
+  envs:
+  # Turso Database
+  - key: TURSO_DATABASE_URL
+    scope: RUN_TIME
+    type: SECRET
+  - key: TURSO_AUTH_TOKEN
+    scope: RUN_TIME
+    type: SECRET
+  # Flask Security
+  - key: FLASK_SECRET_KEY
+    scope: RUN_TIME
+    type: SECRET
+  # Email (Resend)
+  - key: RESEND_API_KEY
+    scope: RUN_TIME
+    type: SECRET
+  - key: EMAIL_FROM
+    scope: RUN_TIME
+    value: "picks@updates.cullin.link"
+  # Golf API (Slash Golf via RapidAPI)
+  - key: GOLF_API_KEY
+    scope: RUN_TIME
+    type: SECRET
+  # Admin users (comma-separated emails)
+  - key: ADMIN_EMAILS
+    scope: RUN_TIME
+    value: ""

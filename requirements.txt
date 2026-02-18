@@ -1,39 +1,43 @@
-asn1crypto==1.5.1
-blinker==1.8.2
-Brotli==1.1.0
-certifi==2024.2.2
-cffi==1.16.0
-charset-normalizer==3.3.2
-click==8.1.7
-cloudpickle==2.2.1
-cryptography==42.0.7
-filelock==3.14.0
+# Flask core
 Flask==3.0.3
 Flask-Compress==1.15
-gunicorn==22.0.0
-idna==3.7
-itsdangerous==2.2.0
+Werkzeug==3.0.3
 Jinja2==3.1.4
 MarkupSafe==2.1.5
-numpy==1.26.4
-packaging==24.0
-pandas==2.2.2
-platformdirs==4.2.1
-pyarrow==16.0.0
-pycparser==2.22
-PyJWT==2.8.0
-pyOpenSSL==24.1.0
-python-dateutil==2.9.0.post0
-pytz==2024.1
-PyYAML==6.0.1
+click==8.1.7
+blinker==1.8.2
+itsdangerous==2.2.0
+
+# Server
+gunicorn==22.0.0
+
+# Database - Turso/libSQL
+libsql-experimental==0.0.47
+
+# Authentication
+argon2-cffi==23.1.0
+email-validator==2.1.0
+
+# Email
+resend==2.0.0
+
+# HTTP client
 requests==2.31.0
-six==1.16.0
-snowflake-connector-python==3.10.0
-snowflake-snowpark-python==1.15.0
-sortedcontainers==2.4.0
-tomlkit==0.12.5
-typing_extensions==4.11.0
-tzdata==2024.1
+certifi==2024.2.2
+charset-normalizer==3.3.2
+idna==3.7
 urllib3==2.2.1
-Werkzeug==3.0.3
-zstandard==0.22.0
+
+# Timezone
+pytz==2024.1
+tzdata==2024.1
+
+# Compression
+Brotli==1.1.0
+
+# Utilities
+typing_extensions==4.11.0
+python-dotenv==1.0.0
+
+# Testing
+pytest==8.3.4
