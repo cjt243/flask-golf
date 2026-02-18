@@ -1,13 +1,25 @@
 # Flask Golf
 
-Flask web application that displays standings and picks for a fantasy golf league using data stored in Snowflake.
+Web application for a fantasy golf league ("80 Yard Bombs Cup"). Displays leaderboards, player standings, and allows users to submit golfer picks. Data is stored in Snowflake and accessed via the Snowpark Python API.
 
 ## Features
 
-- Shows a leaderboard with entry names, team scores and selected golfers.
-- Retrieves data via the Snowpark Python API.
-- Responsive layout built with Bulma CSS.
-- Configured for Gunicorn deployment.
+- Entry-focused leaderboard with team scores and selected golfers
+- Individual golfer standings view
+- Pick submission form with tiered golfer dropdowns
+- In-memory caching with 5-minute TTL
+- Responsive dark-themed UI built with Tailwind CSS
+
+## Tech Stack
+
+- **Python 3.10** (see `runtime.txt`)
+- **Flask 3.0.3** with Jinja2 templates
+- **Snowflake** via `snowflake-snowpark-python`
+- **Pandas** for data manipulation
+- **Tailwind CSS** (CDN) for frontend styling
+- **Choices.js** (CDN) for dropdown components
+- **Gunicorn** for production WSGI serving
+- **Flask-Compress** for HTTP response compression
 
 ## Setup
 
@@ -16,37 +28,48 @@ Flask web application that displays standings and picks for a fantasy golf leagu
    ```bash
    pip install -r requirements.txt
    ```
+3. Configure Snowflake credentials via environment variables or a local `config.py` (gitignored).
 
-## Required Environment Variables
+## Environment Variables
 
-Set the following variables to connect to Snowflake:
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SNOWFLAKE_ACCOUNT` | Yes | Snowflake account identifier |
+| `SNOWFLAKE_USER` | Yes | Snowflake username |
+| `SNOWFLAKE_ROLE` | Yes | Snowflake role |
+| `SNOWFLAKE_WAREHOUSE` | Yes | Snowflake compute warehouse |
+| `SNOWFLAKE_DATABASE` | Yes | Database name (`GOLF_LEAGUE`) |
+| `SNOWFLAKE_SCHEMA` | Yes | Schema name (`APPLICATION`) |
+| `SNOWFLAKE_PRIVATE_KEY` | Prod | Base64-encoded private key for JWT auth |
+| `SNOWFLAKE_PASSWORD` | Dev | Password for local testing (fallback) |
+| `SNOWFLAKE_QUERY_TAG` | No | Optional query tracking tag |
 
-- `SNOWFLAKE_ACCOUNT`
-- `SNOWFLAKE_USER`
-- `SNOWFLAKE_ROLE`
-- `SNOWFLAKE_WAREHOUSE`
-- `SNOWFLAKE_DATABASE`
-- `SNOWFLAKE_SCHEMA`
-- `SNOWFLAKE_PRIVATE_KEY` – base64 encoded private key
-- `SNOWFLAKE_PASSWORD` – optional password for local testing
-- `SNOWFLAKE_QUERY_TAG` – optional query tag
+If `SNOWFLAKE_PRIVATE_KEY` is not set, the app falls back to password authentication using `SNOWFLAKE_PASSWORD`.
 
-These variables can also be defined in a local `config.py` for development. If `SNOWFLAKE_PRIVATE_KEY` is not provided, the application will attempt password authentication using `SNOWFLAKE_PASSWORD`.
-
-## Running the Server Locally
-
-After setting the environment variables, start the app with:
+## Running Locally
 
 ```bash
 python app.py
 ```
 
-This runs Flask in debug mode. For production use Gunicorn:
+This starts Flask in debug mode on port 5000.
+
+## Production
 
 ```bash
 gunicorn --worker-tmp-dir /dev/shm --config gunicorn_config.py app:app
 ```
 
-## Deployment Tips
+Gunicorn is configured to bind on port 8080 with 2 workers.
 
-`runtime.txt` and `Procfile.txt` are provided for deploying to platforms like Heroku. Ensure all Snowflake credentials are configured as environment variables in your deployment environment.
+## Deployment
+
+Deployment configs are provided for:
+- **DigitalOcean App Platform** — `.do/app.yaml` and `.do/deploy.template.yaml`
+- **Heroku** — `Procfile.txt` and `runtime.txt`
+
+Ensure all Snowflake credentials are set as environment variables in your deployment environment.
+
+## License
+
+MIT
