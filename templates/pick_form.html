@@ -56,6 +56,13 @@
             background-color: transparent !important;
             color: #f9fafb !important;
         }
+        /* Ensure dropdowns start closed */
+        .choices[data-type*=select-multiple] .choices__list--dropdown {
+            display: none;
+        }
+        .choices.is-open .choices__list--dropdown {
+            display: block;
+        }
     </style>
 {% endblock %}
 
@@ -156,7 +163,7 @@
                             required>
                             <option value="">Select a golfer...</option>
                             {% for golfer in first %}
-                            <option value="{{ golfer }}">{{ golfer }}</option>
+                            <option value="{{ golfer.name }}">{{ golfer.name }} (#{{ golfer.rank }})</option>
                             {% endfor %}
                         </select>
                         <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
@@ -177,7 +184,7 @@
                     </label>
                     <select name="golfer_2_and_3" class="choices-multiple w-full" multiple required>
                         {% for golfer in second %}
-                        <option value="{{ golfer }}">{{ golfer }}</option>
+                        <option value="{{ golfer.name }}">{{ golfer.name }} (#{{ golfer.rank }})</option>
                         {% endfor %}
                     </select>
                     <p class="text-xs text-gray-500">Choose two golfers ranked 6-16</p>
@@ -192,7 +199,7 @@
                     </label>
                     <select name="golfer_4_and_5" class="choices-multiple w-full" multiple required>
                         {% for golfer in third %}
-                        <option value="{{ golfer }}">{{ golfer }}</option>
+                        <option value="{{ golfer.name }}">{{ golfer.name }} (#{{ golfer.rank }})</option>
                         {% endfor %}
                     </select>
                     <p class="text-xs text-gray-500">Choose two golfers ranked 17 or lower</p>

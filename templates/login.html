@@ -23,6 +23,12 @@
         </div>
         {% endif %}
 
+        {% if request.args.get('msg') == 'registration_closed' %}
+        <div class="mb-6 p-4 bg-gray-700/50 border border-gray-600 rounded-lg">
+            <p class="text-gray-300 text-sm">Registration is currently closed. Sign in if you already have an account.</p>
+        </div>
+        {% endif %}
+
         <form action="/auth/request-link" method="POST" class="space-y-6">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
