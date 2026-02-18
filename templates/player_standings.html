@@ -48,8 +48,8 @@
 
 {% block content %}
         <!-- Stats Summary Cards -->
-        <div class="grid grid-cols-3 gap-4 mb-8">
-            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-8">
+            <div class="bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700">
                 <div class="text-2xl font-bold text-golf-green-500">
                     {% set all_teams = [] %}
                     {% for row in results %}
@@ -61,15 +61,15 @@
                             {% endfor %}
                         {% endif %}
                     {% endfor %}
-                    {{ all_teams|length }}
+                    {% if all_teams|length == 0 %}&mdash;{% else %}{{ all_teams|length }}{% endif %}
                 </div>
-                <div class="text-xs text-gray-400 uppercase tracking-wide">Total Teams Entered</div>
+                <div class="text-xs text-gray-400 uppercase tracking-wide">{% if all_teams|length == 0 %}No Picks Yet{% else %}Total Teams Entered{% endif %}</div>
             </div>
-            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div class="bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700">
                 <div class="text-2xl font-bold text-golf-gold-400">{{ results|length }}</div>
                 <div class="text-xs text-gray-400 uppercase tracking-wide">Unique Players Selected</div>
             </div>
-            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div class="bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700">
                 <div class="text-2xl font-bold text-red-400">
                     {% if cut_line %}
                         {% if cut_line > 0 %}+{{ cut_line|int }}{% elif cut_line < 0 %}{{ cut_line|int }}{% else %}E{% endif %}

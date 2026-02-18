@@ -1166,7 +1166,7 @@ def auth_request_access():
     if g.user:
         return redirect(url_for('leaderboard'))
     if not is_registration_open():
-        return redirect(url_for('auth_login'))
+        return redirect(url_for('auth_login', msg='registration_closed'))
     return render_template('request_access.html')
 
 
@@ -1295,6 +1295,7 @@ def leaderboard():
                          last_updated=last_updated,
                          cut_line=metadata.get('cut_line') if metadata else None,
                          player_scores=player_scores,
+                         picks_locked=tournament.get('picks_locked', True),
                          is_fallback=False,
                          user=g.user)
 
@@ -1430,12 +1431,12 @@ def make_picks():
     # Sort by OWGR rank (lower is better)
     golfers.sort(key=lambda x: x['owgr_rank'] or 999)
 
-    golfer_names = [g['name'] for g in golfers]
+    golfer_data = [{'name': g['name'], 'rank': i + 1} for i, g in enumerate(golfers)]
 
     # Split into tiers
-    first = golfer_names[:5]
-    second = golfer_names[5:16]
-    third = golfer_names[16:]
+    first = golfer_data[:5]
+    second = golfer_data[5:16]
+    third = golfer_data[16:]
 
     return render_template('pick_form.html',
                          tournament_name=tournament['name'],

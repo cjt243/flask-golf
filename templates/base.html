@@ -62,11 +62,11 @@
         <div class="max-w-6xl mx-auto px-4 py-4">
             {# --- Authenticated nav: tabs + auth controls --- #}
             {% if show_nav is defined and show_nav %}
-            <div class="flex items-center justify-between">
+            <div class="flex flex-wrap items-center justify-between gap-y-2">
                 <a href="/" class="font-display text-xl text-golf-gold-400 flex-shrink-0">
                     80 Yard Bombs Cup
                 </a>
-                <div class="flex items-center space-x-2">
+                <div class="order-last w-full sm:w-auto sm:order-none flex items-center space-x-2">
                     <nav class="flex items-center bg-turf-800 rounded-lg p-1">
                         <a href="/" class="px-3 py-1.5 text-xs font-medium {{ 'text-white bg-golf-green-600' if active_tab == 'leaderboard' else 'text-gray-300 hover:text-white hover:bg-gray-700' }} rounded-md transition-colors">
                             Board
@@ -116,7 +116,7 @@
 
     <footer class="border-t border-gray-800/50 py-4 mt-auto">
         <div class="max-w-6xl mx-auto px-4 text-center text-xs text-gray-600">
-            80 Yard Bombs Cup &middot; {{ season_year or '2025' }}
+            80 Yard Bombs Cup &middot; {{ season_year }}
         </div>
     </footer>
 
