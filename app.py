@@ -260,7 +260,7 @@ def start_request_timer():
 @app.before_request
 def enforce_https():
     """Redirect HTTP to HTTPS in production."""
-    if not app.debug:
+    if not app.debug and request.path != '/health':
         if request.headers.get('X-Forwarded-Proto', 'http') != 'https':
             return redirect(request.url.replace('http://', 'https://'), code=301)
 
