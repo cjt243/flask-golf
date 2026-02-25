@@ -82,6 +82,8 @@ CREATE TABLE IF NOT EXISTS golfers (
     tee_time TEXT,
     status TEXT,
     owgr_rank INTEGER,
+    tier_override INTEGER,
+    dk_salary INTEGER,
     last_updated TEXT DEFAULT (datetime('now')),
     UNIQUE(tournament_id, name)
 );

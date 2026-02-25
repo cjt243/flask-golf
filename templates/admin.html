@@ -135,6 +135,13 @@
                                 </button>
                             </form>
 
+                            <!-- Manage Tiers -->
+                            {% if t.golfer_count > 0 %}
+                            <a href="/admin/manage-tiers/{{ t.id }}" class="px-3 py-1.5 text-xs bg-purple-600 hover:bg-purple-500 text-white rounded transition-colors inline-block">
+                                Tiers
+                            </a>
+                            {% endif %}
+
                             <!-- Activate -->
                             {% if not t.is_active %}
                             <form action="/admin/activate-tournament" method="POST" class="inline">

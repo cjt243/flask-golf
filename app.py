@@ -12,6 +12,7 @@ import random
 import logging
 import secrets
 import hashlib
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
@@ -151,6 +152,8 @@ def _run_migrations(db):
         ("ALTER TABLE users ADD COLUMN last_name TEXT", "users.last_name"),
         ("ALTER TABLE access_requests ADD COLUMN first_name TEXT", "access_requests.first_name"),
         ("ALTER TABLE access_requests ADD COLUMN last_name TEXT", "access_requests.last_name"),
+        ("ALTER TABLE golfers ADD COLUMN tier_override INTEGER", "golfers.tier_override"),
+        ("ALTER TABLE golfers ADD COLUMN dk_salary INTEGER", "golfers.dk_salary"),
     ]
     for sql, description in migrations:
         try:
@@ -667,7 +670,8 @@ def get_golfers(tournament_id):
     db = get_db()
     results = db.execute("""
         SELECT name, position, total_score, score_display, current_round_score,
-               round_number, thru, tee_time, status, owgr_rank, last_updated
+               round_number, thru, tee_time, status, owgr_rank, last_updated,
+               tier_override, dk_salary
         FROM golfers WHERE tournament_id = ? ORDER BY total_score ASC NULLS LAST
     """, [tournament_id]).fetchall()
 
@@ -682,7 +686,9 @@ def get_golfers(tournament_id):
         'tee_time': r[7],
         'status': r[8],
         'owgr_rank': r[9],
-        'last_updated': r[10]
+        'last_updated': r[10],
+        'tier_override': r[11],
+        'dk_salary': r[12]
     } for r in results]
 
 
@@ -969,6 +975,98 @@ def refresh_golfers_from_api(tournament_id, tournament_external_id, year=None):
     return True
 
 
+def fetch_dk_salaries():
+    """Fetch current PGA TOUR DraftKings salaries.
+
+    Returns (salaries_dict, contest_name, player_count) on success,
+    or (None, None, None) on failure. salaries_dict maps normalized_name → salary.
+    """
+    try:
+        # Step 1: Find the current-week PGA TOUR classic draft group
+        resp = requests.get(
+            'https://www.draftkings.com/lobby/getcontests?sport=GOLF',
+            headers={'User-Agent': 'Mozilla/5.0'},
+            timeout=15
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        # Collect unique draft group IDs from classic PGA TOUR contests.
+        # "PGA TOUR" in the name = current week's event.
+        # Plain "PGA" without "TOUR" = cross-tournament specials (e.g. Masters Main Event).
+        candidate_dgids = {}
+        for contest in data.get('Contests', []):
+            if contest.get('gameTypeId') != 6:
+                continue
+            name = contest.get('n', '')
+            dgid = contest.get('dgid') or contest.get('dg')
+            if not dgid:
+                continue
+            name_upper = name.upper()
+            if 'PGA TOUR' in name_upper:
+                candidate_dgids[dgid] = name
+            elif 'PGA' in name_upper and dgid not in candidate_dgids:
+                # Fallback: keep as secondary option
+                candidate_dgids.setdefault(f'_fallback_{dgid}', (dgid, name))
+
+        # Prefer "PGA TOUR" draft groups; pick the one with the most draftables
+        draft_group_id = None
+        contest_name = None
+
+        # Try PGA TOUR groups first (numeric keys)
+        tour_dgids = {k: v for k, v in candidate_dgids.items() if not str(k).startswith('_')}
+        if tour_dgids:
+            # Usually all PGA TOUR classic contests share one draft group ID
+            draft_group_id = next(iter(tour_dgids))
+            contest_name = tour_dgids[draft_group_id]
+
+        if not draft_group_id:
+            # Fall back to plain PGA groups
+            fallbacks = {k: v for k, v in candidate_dgids.items() if str(k).startswith('_')}
+            if fallbacks:
+                fb = next(iter(fallbacks.values()))
+                draft_group_id, contest_name = fb
+
+        if not draft_group_id:
+            logger.warning("DK: No PGA TOUR classic contest found in lobby")
+            return None, None, None
+
+        logger.info(f"DK: Found draft group {draft_group_id} — {contest_name}")
+
+        # Step 2: Fetch draftables (player salaries)
+        resp = requests.get(
+            f'https://api.draftkings.com/draftgroups/v1/draftgroups/{draft_group_id}/draftables',
+            headers={'User-Agent': 'Mozilla/5.0'},
+            timeout=15
+        )
+        resp.raise_for_status()
+        draftables = resp.json()
+
+        salaries = {}
+        for player in draftables.get('draftables', []):
+            name = player.get('displayName', '').strip()
+            salary = player.get('salary')
+            if name and salary:
+                normalized = _normalize_golfer_name(name)
+                # Keep the highest salary if a player appears multiple times
+                if normalized not in salaries or salary > salaries[normalized]:
+                    salaries[normalized] = salary
+
+        if not salaries:
+            logger.warning(f"DK: Draft group {draft_group_id} returned 0 salaries (may not be populated yet)")
+            return None, None, None
+
+        logger.info(f"DK: Fetched {len(salaries)} player salaries from draft group {draft_group_id}")
+        return salaries, contest_name, len(salaries)
+
+    except requests.RequestException as e:
+        logger.warning(f"DK API error: {e}")
+        return None, None, None
+    except (KeyError, ValueError) as e:
+        logger.warning(f"DK API parse error: {e}")
+        return None, None, None
+
+
 def _api_int(value):
     """Extract integer from API value, handling {'$numberInt': '4'} dicts."""
     if value is None:
@@ -994,6 +1092,33 @@ def parse_score_to_int(score_str):
         return int(score_str.replace('+', ''))
     except ValueError:
         return None
+
+
+def _normalize_golfer_name(name):
+    """Normalize golfer name for cross-source matching.
+
+    Handles: diacritics (é→e), Nordic letters (ø→o, æ→ae), disambiguation
+    initials (Jordan L. Smith → Jordan Smith), suffixes (Jr., III, IV),
+    case, extra whitespace.
+    """
+    # Replace Nordic standalone letters before NFD decomposition
+    # (ø, ð are not decomposed by NFD — they're unique codepoints)
+    name = name.replace('ø', 'o').replace('Ø', 'O')
+    name = name.replace('ð', 'd').replace('Ð', 'D')
+    name = name.replace('æ', 'ae').replace('Æ', 'AE')
+    # Strip diacritics: NFD decompose, remove combining marks
+    name = unicodedata.normalize('NFD', name)
+    name = ''.join(c for c in name if unicodedata.category(c) != 'Mn')
+    # Lowercase
+    name = name.lower().strip()
+    # Remove suffixes
+    name = re.sub(r'\b(jr\.?|sr\.?|ii|iii|iv)\s*$', '', name).strip()
+    # Remove single-letter middle initials: "Jordan L. Smith" → "Jordan Smith"
+    # Only match a single letter+period that is BETWEEN other words (not at start)
+    name = re.sub(r'(?<=\w\s)([a-z])\.\s*', '', name).strip()
+    # Collapse whitespace
+    name = re.sub(r'\s+', ' ', name)
+    return name
 
 
 def format_score(score):
@@ -1428,15 +1553,34 @@ def make_picks():
                              is_fallback=False,
                              user=g.user)
 
-    # Sort by OWGR rank (lower is better)
-    golfers.sort(key=lambda x: x['owgr_rank'] or 999)
+    # Sort by DK salary (higher is better) if available, else OWGR rank (lower is better)
+    has_dk_data = any(gl.get('dk_salary') for gl in golfers)
+    if has_dk_data:
+        golfers.sort(key=lambda x: x['dk_salary'] or 0, reverse=True)
+    else:
+        golfers.sort(key=lambda x: x['owgr_rank'] or 999)
 
-    golfer_data = [{'name': g['name'], 'rank': i + 1} for i, g in enumerate(golfers)]
-
-    # Split into tiers
-    first = golfer_data[:5]
-    second = golfer_data[5:16]
-    third = golfer_data[16:]
+    # Split into tiers (tier_override takes precedence over index-based computation)
+    first = []
+    second = []
+    third = []
+    for i, gl in enumerate(golfers):
+        entry = {'name': gl['name']}
+        tier = gl.get('tier_override')
+        if not tier:
+            # Compute from index position
+            if i < 5:
+                tier = 1
+            elif i < 16:
+                tier = 2
+            else:
+                tier = 3
+        if tier == 1:
+            first.append(entry)
+        elif tier == 2:
+            second.append(entry)
+        else:
+            third.append(entry)
 
     return render_template('pick_form.html',
                          tournament_name=tournament['name'],
@@ -1701,6 +1845,55 @@ def admin_refresh_golfers():
     return redirect(url_for('admin_dashboard'))
 
 
+@app.route('/admin/fetch-dk-salaries', methods=['POST'])
+@admin_required
+@csrf_required
+def admin_fetch_dk_salaries():
+    """Fetch DraftKings salaries and match to tournament golfers."""
+    tournament_id = request.form.get('tournament_id')
+
+    if not tournament_id:
+        return redirect(url_for('admin_dashboard'))
+
+    salaries, contest_name, player_count = fetch_dk_salaries()
+
+    if salaries is None:
+        logger.warning("DK salary fetch failed — no data returned")
+        return redirect(url_for('admin_manage_tiers', tournament_id=tournament_id))
+
+    db = get_db()
+    golfers = db.execute(
+        "SELECT id, name FROM golfers WHERE tournament_id = ?", [tournament_id]
+    ).fetchall()
+
+    matched = 0
+    unmatched_dk = set(salaries.keys())
+    unmatched_golfers = []
+
+    for golfer_id, golfer_name in golfers:
+        normalized = _normalize_golfer_name(golfer_name)
+        if normalized in salaries:
+            db.execute("UPDATE golfers SET dk_salary = ? WHERE id = ?",
+                       [salaries[normalized], golfer_id])
+            matched += 1
+            unmatched_dk.discard(normalized)
+        else:
+            unmatched_golfers.append(golfer_name)
+
+    db.commit()
+
+    # Clear caches
+    _cache.clear()
+
+    logger.info(f"DK salaries: {matched}/{len(golfers)} golfers matched from {contest_name}")
+    if unmatched_golfers:
+        logger.info(f"DK unmatched golfers (in DB, not in DK): {unmatched_golfers[:20]}")
+    if unmatched_dk:
+        logger.info(f"DK unmatched players (in DK, not in DB): {list(unmatched_dk)[:20]}")
+
+    return redirect(url_for('admin_manage_tiers', tournament_id=tournament_id))
+
+
 @app.route('/admin/delete-tournament', methods=['POST'])
 @admin_required
 @csrf_required
@@ -1810,6 +2003,143 @@ def admin_toggle_registration():
     """, [new_value])
     db.commit()
     return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/manage-tiers/<tournament_id>')
+@admin_required
+def admin_manage_tiers(tournament_id):
+    """Manage golfer tier assignments for a tournament."""
+    db = get_db()
+    tournament = db.execute(
+        "SELECT id, name FROM tournaments WHERE id = ?", [tournament_id]
+    ).fetchone()
+
+    if not tournament:
+        return redirect(url_for('admin_dashboard'))
+
+    # Get golfers sorted by DK salary (if available) then OWGR rank
+    golfers = db.execute("""
+        SELECT id, name, owgr_rank, tier_override, dk_salary
+        FROM golfers WHERE tournament_id = ?
+        ORDER BY dk_salary DESC NULLS LAST, owgr_rank ASC NULLS LAST
+    """, [tournament_id]).fetchall()
+
+    has_dk_data = any(row[4] for row in golfers)
+
+    # Build golfer list with computed and effective tiers
+    tier_1 = []
+    tier_2 = []
+    tier_3 = []
+    override_count = 0
+
+    for i, row in enumerate(golfers):
+        # Compute what tier would be without override
+        if i < 5:
+            computed_tier = 1
+        elif i < 16:
+            computed_tier = 2
+        else:
+            computed_tier = 3
+
+        override = row[3]
+        effective_tier = override if override else computed_tier
+        is_overridden = override is not None
+
+        if is_overridden:
+            override_count += 1
+
+        entry = {
+            'id': row[0],
+            'name': row[1],
+            'owgr_rank': row[2],
+            'computed_tier': computed_tier,
+            'effective_tier': effective_tier,
+            'tier_override': override,
+            'is_overridden': is_overridden,
+            'dk_salary': row[4],
+        }
+
+        if effective_tier == 1:
+            tier_1.append(entry)
+        elif effective_tier == 2:
+            tier_2.append(entry)
+        else:
+            tier_3.append(entry)
+
+    return render_template('admin_tiers.html',
+                         tournament_id=tournament[0],
+                         tournament_name=tournament[1],
+                         tier_1=tier_1,
+                         tier_2=tier_2,
+                         tier_3=tier_3,
+                         golfer_count=len(golfers),
+                         override_count=override_count,
+                         has_dk_data=has_dk_data,
+                         user=g.user)
+
+
+@app.route('/admin/save-tiers', methods=['POST'])
+@admin_required
+@csrf_required
+def admin_save_tiers():
+    """Save tier override assignments."""
+    tournament_id = request.form.get('tournament_id')
+    if not tournament_id:
+        return redirect(url_for('admin_dashboard'))
+
+    db = get_db()
+
+    # Get all golfer IDs for this tournament
+    golfer_ids = db.execute(
+        "SELECT id FROM golfers WHERE tournament_id = ?", [tournament_id]
+    ).fetchall()
+
+    for row in golfer_ids:
+        golfer_id = row[0]
+        tier_value = request.form.get(f'tier_{golfer_id}')
+
+        if tier_value in ('1', '2', '3'):
+            db.execute(
+                "UPDATE golfers SET tier_override = ? WHERE id = ?",
+                [int(tier_value), golfer_id]
+            )
+        else:
+            # "auto" or missing — clear override
+            db.execute(
+                "UPDATE golfers SET tier_override = NULL WHERE id = ?",
+                [golfer_id]
+            )
+
+    db.commit()
+
+    # Clear caches
+    _cache.pop(f'leaderboard_{tournament_id}', None)
+    _cache.pop(f'players_{tournament_id}', None)
+
+    return redirect(url_for('admin_manage_tiers', tournament_id=tournament_id))
+
+
+@app.route('/admin/reset-tiers', methods=['POST'])
+@admin_required
+@csrf_required
+def admin_reset_tiers():
+    """Reset all tier overrides for a tournament."""
+    tournament_id = request.form.get('tournament_id')
+    if not tournament_id:
+        return redirect(url_for('admin_dashboard'))
+
+    db = get_db()
+    db.execute(
+        "UPDATE golfers SET tier_override = NULL WHERE tournament_id = ?",
+        [tournament_id]
+    )
+    db.commit()
+
+    # Clear caches
+    _cache.pop(f'leaderboard_{tournament_id}', None)
+    _cache.pop(f'players_{tournament_id}', None)
+
+    return redirect(url_for('admin_manage_tiers', tournament_id=tournament_id))
 
 
 # =============================================================================
