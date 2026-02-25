@@ -16,12 +16,12 @@ Flask Golf is a single-file Flask web app for a fantasy golf league ("80 Yard Bo
 |------------|---------|
 | `app.py` | Entire application (~2300 lines) |
 | `schema.sql` | Database schema (Turso/libSQL) |
-| `templates/*.html` | 12 Jinja2 page templates — all extend `base.html` |
+| `templates/*.html` | 12 Jinja2 page templates — all extend `base.html`; `macros.html` has shared macros |
 | `templates/emails/*.html` | 3 email templates (magic_link, admin_notification, approval) |
 | `static/css/styles.css` | Tailwind CSS output (28KB minified) |
 | `static/src/input.css` | Tailwind CSS source |
 | `tailwind.config.js` | Tailwind build config with custom golf colors |
-| `tests/` | 78 pytest tests (auth, picks, leaderboard, admin, utils) |
+| `tests/` | 72 pytest tests (auth, picks, leaderboard, admin, utils) |
 | `.github/workflows/` | CI (test.yml) + auto-refresh cron (auto-refresh.yml) |
 | `gunicorn_config.py` | Production server config (port 8080, 2 workers) |
 | `requirements.txt` | Pinned Python dependencies |

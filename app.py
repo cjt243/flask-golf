@@ -1,6 +1,5 @@
 """
 Flask Golf - Fantasy Golf League Application
-Migrated from Snowflake to Turso with Magic Link Authentication
 """
 
 import os
@@ -67,6 +66,9 @@ CACHE_TTL = 300  # 5 minutes
 SESSION_EXPIRY_DAYS = 7
 MAGIC_LINK_EXPIRY_MINUTES = 10
 ADMIN_EMAILS = os.getenv('ADMIN_EMAILS', '').split(',')
+
+# Tier boundaries: (threshold, tier) — index < threshold → tier
+TIER_BOUNDARIES = [(5, 1), (16, 2)]
 
 # Rate limiting configuration
 RATE_LIMITS = {
@@ -167,29 +169,16 @@ def _run_migrations(db):
                 logger.warning(f"Migration skipped ({description}): {e}")
     db.commit()
 
-    # Backfill: parse existing display_name into first_name + last_name where not yet set
-    try:
-        rows = db.execute(
-            "SELECT id, display_name FROM users WHERE display_name IS NOT NULL AND first_name IS NULL"
-        ).fetchall()
-        for row in rows:
-            parts = row[1].strip().split(None, 1)
-            first = parts[0] if parts else ''
-            last = parts[1] if len(parts) > 1 else ''
-            db.execute("UPDATE users SET first_name = ?, last_name = ? WHERE id = ?", [first, last, row[0]])
-
-        rows = db.execute(
-            "SELECT id, display_name FROM access_requests WHERE display_name IS NOT NULL AND first_name IS NULL"
-        ).fetchall()
-        for row in rows:
-            parts = row[1].strip().split(None, 1)
-            first = parts[0] if parts else ''
-            last = parts[1] if len(parts) > 1 else ''
-            db.execute("UPDATE access_requests SET first_name = ?, last_name = ? WHERE id = ?", [first, last, row[0]])
-
-        db.commit()
-    except Exception as e:
-        logger.warning(f"Backfill warning: {e}")
+    # Indexes — idempotent, but tables may not exist yet (e.g., test env before init-db)
+    for sql in [
+        "CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)",
+        "CREATE INDEX IF NOT EXISTS idx_auth_tokens_expires ON auth_tokens(expires_at)",
+    ]:
+        try:
+            db.execute(sql)
+        except Exception:
+            pass  # Table doesn't exist yet; init-db will create both table and index
+    db.commit()
 
 
 # =============================================================================
@@ -210,6 +199,27 @@ def get_cached(key):
 def set_cache(key, data):
     """Set cached data with current timestamp."""
     _cache[key] = (data, time.time())
+
+
+def clear_tournament_cache(tournament_id=None):
+    """Clear tournament-specific caches, or all caches if no ID given."""
+    if tournament_id:
+        _cache.pop(f'leaderboard_{tournament_id}', None)
+        _cache.pop(f'players_{tournament_id}', None)
+    else:
+        _cache.clear()
+
+
+def format_last_updated(iso_string):
+    """Format ISO timestamp for display in US/Eastern."""
+    if not iso_string:
+        return 'N/A'
+    try:
+        dt = datetime.fromisoformat(iso_string)
+        dt = dt.replace(tzinfo=pytz_timezone('UTC')).astimezone(pytz_timezone('US/Eastern'))
+        return dt.strftime('%A %B %d @ %I:%M %p %Z')
+    except (ValueError, TypeError):
+        return 'Recently updated'
 
 
 # =============================================================================
@@ -376,7 +386,6 @@ def get_refresh_schedule():
         db = get_db()
         row = db.execute("SELECT value FROM app_settings WHERE key = 'refresh_schedule'").fetchone()
         if row:
-            import json
             return json.loads(row[0])
     except Exception:
         pass
@@ -385,7 +394,6 @@ def get_refresh_schedule():
 
 def save_refresh_schedule(start_hour, end_hour, days):
     """Save the auto-refresh schedule to app_settings."""
-    import json
     schedule = {'start_hour': int(start_hour), 'end_hour': int(end_hour), 'days': sorted(days)}
     db = get_db()
     db.execute(
@@ -433,41 +441,32 @@ def check_rate_limit(identifier, action):
         return True
 
     db = get_db()
-    window_start = datetime.now(timezone.utc) - timedelta(minutes=limit_config['window_minutes'])
+    window_minutes = limit_config['window_minutes']
+
+    # Upsert: insert new row or reset expired window, then increment
+    db.execute("""
+        INSERT INTO rate_limits (identifier, action, attempts, window_start)
+        VALUES (?, ?, 1, datetime('now'))
+        ON CONFLICT(identifier, action) DO UPDATE SET
+            attempts = CASE
+                WHEN datetime(window_start, '+' || ? || ' minutes') < datetime('now')
+                THEN 1
+                ELSE attempts + 1
+            END,
+            window_start = CASE
+                WHEN datetime(window_start, '+' || ? || ' minutes') < datetime('now')
+                THEN datetime('now')
+                ELSE window_start
+            END
+    """, [identifier, action, window_minutes, window_minutes])
+    db.commit()
 
     result = db.execute("""
-        SELECT attempts, window_start FROM rate_limits
+        SELECT attempts FROM rate_limits
         WHERE identifier = ? AND action = ?
     """, [identifier, action]).fetchone()
 
-    if result:
-        attempts, stored_window = result
-        stored_window_dt = datetime.fromisoformat(stored_window).replace(tzinfo=timezone.utc)
-
-        if stored_window_dt < window_start:
-            # Window expired, reset
-            db.execute("""
-                UPDATE rate_limits SET attempts = 1, window_start = datetime('now')
-                WHERE identifier = ? AND action = ?
-            """, [identifier, action])
-            db.commit()
-            return True
-        elif attempts >= limit_config['max']:
-            return False
-        else:
-            db.execute("""
-                UPDATE rate_limits SET attempts = attempts + 1
-                WHERE identifier = ? AND action = ?
-            """, [identifier, action])
-            db.commit()
-            return True
-    else:
-        db.execute("""
-            INSERT INTO rate_limits (identifier, action, attempts, window_start)
-            VALUES (?, ?, 1, datetime('now'))
-        """, [identifier, action])
-        db.commit()
-        return True
+    return result[0] <= limit_config['max']
 
 
 # =============================================================================
@@ -660,6 +659,25 @@ def send_approval_email(email, name):
 # Tournament & Golfer Helpers
 # =============================================================================
 
+def compute_tier(index, tier_override=None):
+    """Compute golfer tier from sort index, with optional manual override."""
+    if tier_override:
+        return tier_override
+    for threshold, tier in TIER_BOUNDARIES:
+        if index < threshold:
+            return tier
+    return 3
+
+
+def get_tournament_external_info(tournament_id):
+    """Fetch tournament's external_id and season_year. Returns tuple or None."""
+    db = get_db()
+    return db.execute(
+        "SELECT external_id, season_year FROM tournaments WHERE id = ?",
+        [tournament_id]
+    ).fetchone()
+
+
 def get_active_tournament():
     """Get the currently active tournament."""
     db = get_db()
@@ -836,6 +854,16 @@ def compute_player_standings(tournament_id):
 GOLF_API_BASE_URL = "https://live-golf-data.p.rapidapi.com"
 
 
+def _extract_player_name(player):
+    """Extract player name from API response with multiple fallbacks."""
+    first_name = player.get('firstName', '')
+    last_name = player.get('lastName', '')
+    name = f"{first_name} {last_name}".strip()
+    if not name:
+        name = player.get('name', player.get('playerName', ''))
+    return name
+
+
 def get_golf_api_headers():
     """Get headers for Slash Golf API requests."""
     api_key = os.getenv('GOLF_API_KEY')
@@ -939,14 +967,7 @@ def refresh_golfers_from_api(tournament_id, tournament_external_id, year=None):
         cut_line = data['cutLines'][0].get('cutScore')
 
     for player in leaderboard:
-        # Player name handling - API uses 'firstName' and 'lastName'
-        first_name = player.get('firstName', '')
-        last_name = player.get('lastName', '')
-        name = f"{first_name} {last_name}".strip()
-
-        if not name:
-            name = player.get('name', player.get('playerName', ''))
-
+        name = _extract_player_name(player)
         if not name:
             continue
 
@@ -1153,16 +1174,6 @@ def _normalize_golfer_name(name):
     return name
 
 
-def format_score(score):
-    """Format score for display."""
-    if score is None:
-        return '--'
-    if score == 0:
-        return 'E'
-    if score > 0:
-        return f'+{score}'
-    return str(score)
-
 
 # =============================================================================
 # Auth Routes
@@ -1223,6 +1234,34 @@ def auth_request_link():
     return render_template('check_email.html', email=email)
 
 
+def _verify_magic_token(email, raw_token):
+    """Verify a magic link token against stored hashes.
+
+    Returns (token_id, None) on success, or (None, error_message) on failure.
+    """
+    db = get_db()
+    results = db.execute("""
+        SELECT id, token_hash, expires_at, used_at
+        FROM auth_tokens WHERE email = ? AND used_at IS NULL
+        ORDER BY created_at DESC LIMIT 5
+    """, [email]).fetchall()
+
+    for result in results:
+        token_id, stored_hash, expires_at, _used_at = result
+        expires_dt = datetime.fromisoformat(expires_at).replace(tzinfo=timezone.utc)
+
+        if expires_dt < datetime.now(timezone.utc):
+            continue
+
+        try:
+            ph.verify(stored_hash, raw_token)
+            return token_id, None
+        except VerifyMismatchError:
+            continue
+
+    return None, 'This sign-in link is invalid or has expired.'
+
+
 @app.route('/auth/verify')
 def auth_verify():
     """Verify magic link token."""
@@ -1239,40 +1278,20 @@ def auth_verify():
         log_security_event('rate_limited', request, email=email, details={'action': 'verification'})
         return render_template('error.html', message='Too many attempts. Please try again later.')
 
-    db = get_db()
-
-    # Find valid token
-    results = db.execute("""
-        SELECT id, token_hash, expires_at, used_at
-        FROM auth_tokens WHERE email = ? AND used_at IS NULL
-        ORDER BY created_at DESC LIMIT 5
-    """, [email]).fetchall()
-
-    valid_token_id = None
-    for result in results:
-        token_id, stored_hash, expires_at, used_at = result
-        expires_dt = datetime.fromisoformat(expires_at).replace(tzinfo=timezone.utc)
-
-        if expires_dt < datetime.now(timezone.utc):
-            continue
-
-        try:
-            ph.verify(stored_hash, token)
-            valid_token_id = token_id
-            break
-        except VerifyMismatchError:
-            continue
+    valid_token_id, error = _verify_magic_token(email, token)
 
     if not valid_token_id:
         log_security_event('failed_login', request, email=email, details={'reason': 'invalid_token'})
+        db = get_db()
         db.execute("""
             INSERT INTO failed_logins (id, email, ip_address, reason)
             VALUES (lower(hex(randomblob(16))), ?, ?, 'invalid_token')
         """, [email, client_ip])
         db.commit()
-        return render_template('error.html', message='This sign-in link is invalid or has expired.')
+        return render_template('error.html', message=error)
 
     # Mark token as used
+    db = get_db()
     db.execute("UPDATE auth_tokens SET used_at = datetime('now') WHERE id = ?", [valid_token_id])
 
     # Get or create user
@@ -1421,17 +1440,9 @@ def leaderboard():
         results, metadata, last_updated = cached
     else:
         results, metadata = compute_leaderboard(tournament['id'])
-        last_updated = metadata.get('last_api_update') if metadata else None
-
-        if last_updated:
-            try:
-                dt = datetime.fromisoformat(last_updated)
-                dt = dt.replace(tzinfo=pytz_timezone('UTC')).astimezone(pytz_timezone('US/Eastern'))
-                last_updated = dt.strftime('%A %B %d @ %I:%M %p %Z')
-            except (ValueError, TypeError):
-                last_updated = 'Recently updated'
-        else:
-            last_updated = 'N/A'
+        last_updated = format_last_updated(
+            metadata.get('last_api_update') if metadata else None
+        )
 
         set_cache(cache_key, (results, metadata, last_updated))
 
@@ -1490,17 +1501,9 @@ def player_standings():
     else:
         golfers = compute_player_standings(tournament['id'])
         metadata = get_tournament_metadata(tournament['id'])
-        last_updated = metadata.get('last_api_update') if metadata else None
-
-        if last_updated:
-            try:
-                dt = datetime.fromisoformat(last_updated)
-                dt = dt.replace(tzinfo=pytz_timezone('UTC')).astimezone(pytz_timezone('US/Eastern'))
-                last_updated = dt.strftime('%A %B %d @ %I:%M %p %Z')
-            except (ValueError, TypeError):
-                last_updated = 'Recently updated'
-        else:
-            last_updated = 'N/A'
+        last_updated = format_last_updated(
+            metadata.get('last_api_update') if metadata else None
+        )
 
         set_cache(cache_key, (golfers, metadata, last_updated))
 
@@ -1530,6 +1533,15 @@ def player_standings():
                          user=g.user)
 
 
+def _render_pick_form(**overrides):
+    """Render pick_form.html with defaults for all template params."""
+    ctx = dict(tournament_name='No Active Tournament', first=None, second=None,
+               third=None, picks_locked=True, already_submitted=False,
+               existing_entry=None, is_fallback=True, user=g.user)
+    ctx.update(overrides)
+    return render_template('pick_form.html', **ctx)
+
+
 @app.route('/make_picks')
 @login_required
 def make_picks():
@@ -1537,29 +1549,10 @@ def make_picks():
     tournament = get_active_tournament()
 
     if not tournament:
-        return render_template('pick_form.html',
-                             tournament_name='No Active Tournament',
-                             first=None,
-                             second=None,
-                             third=None,
-                             picks_locked=True,
-                             already_submitted=False,
-                             existing_entry=None,
-                             is_fallback=True,
-                             user=g.user)
+        return _render_pick_form()
 
-    # Check if picks are locked
     if tournament['picks_locked']:
-        return render_template('pick_form.html',
-                             tournament_name=tournament['name'],
-                             first=None,
-                             second=None,
-                             third=None,
-                             picks_locked=True,
-                             already_submitted=False,
-                             existing_entry=None,
-                             is_fallback=False,
-                             user=g.user)
+        return _render_pick_form(tournament_name=tournament['name'], is_fallback=False)
 
     # Check if user already submitted
     db = get_db()
@@ -1569,31 +1562,16 @@ def make_picks():
     """, [g.user['id'], tournament['id']]).fetchone()
 
     if existing:
-        return render_template('pick_form.html',
-                             tournament_name=tournament['name'],
-                             first=None,
-                             second=None,
-                             third=None,
-                             picks_locked=False,
-                             already_submitted=True,
-                             existing_entry=existing[0],
-                             is_fallback=False,
-                             user=g.user)
+        return _render_pick_form(tournament_name=tournament['name'], picks_locked=False,
+                                 already_submitted=True, existing_entry=existing[0],
+                                 is_fallback=False)
 
     # Get golfers for pick options
     golfers = get_golfers(tournament['id'])
 
     if not golfers:
-        return render_template('pick_form.html',
-                             tournament_name=tournament['name'],
-                             first=[],
-                             second=[],
-                             third=[],
-                             picks_locked=False,
-                             already_submitted=False,
-                             existing_entry=None,
-                             is_fallback=False,
-                             user=g.user)
+        return _render_pick_form(tournament_name=tournament['name'], picks_locked=False,
+                                 first=[], second=[], third=[], is_fallback=False)
 
     # Sort by DK salary (higher is better) if available, else OWGR rank (lower is better)
     has_dk_data = any(gl.get('dk_salary') for gl in golfers)
@@ -1608,15 +1586,7 @@ def make_picks():
     third = []
     for i, gl in enumerate(golfers):
         entry = {'name': gl['name']}
-        tier = gl.get('tier_override')
-        if not tier:
-            # Compute from index position
-            if i < 5:
-                tier = 1
-            elif i < 16:
-                tier = 2
-            else:
-                tier = 3
+        tier = compute_tier(i, gl.get('tier_override'))
         if tier == 1:
             first.append(entry)
         elif tier == 2:
@@ -1624,16 +1594,9 @@ def make_picks():
         else:
             third.append(entry)
 
-    return render_template('pick_form.html',
-                         tournament_name=tournament['name'],
-                         first=first,
-                         second=second,
-                         third=third,
-                         picks_locked=False,
-                         already_submitted=False,
-                         existing_entry=None,
-                         is_fallback=False,
-                         user=g.user)
+    return _render_pick_form(tournament_name=tournament['name'], first=first,
+                             second=second, third=third, picks_locked=False,
+                             is_fallback=False)
 
 
 @app.route('/submit_picks', methods=['POST'])
@@ -1696,8 +1659,7 @@ def submit_picks():
         db.commit()
 
         # Clear cache
-        _cache.pop(f'leaderboard_{tournament["id"]}', None)
-        _cache.pop(f'players_{tournament["id"]}', None)
+        clear_tournament_cache(tournament['id'])
 
         return render_template('submit_success.html',
                              tournament=tournament['name'],
@@ -1711,6 +1673,34 @@ def submit_picks():
 # =============================================================================
 # Admin Routes
 # =============================================================================
+
+def _parse_api_schedule(raw_schedule):
+    """Parse MongoDB-style dates from the golf API schedule into display-friendly dicts."""
+    now = datetime.now(timezone.utc)
+    schedule = []
+    for event in raw_schedule:
+        start_date = None
+        end_date = None
+        try:
+            date_obj = event.get('date', {})
+            start_ms = date_obj.get('start', {}).get('$date', {}).get('$numberLong')
+            end_ms = date_obj.get('end', {}).get('$date', {}).get('$numberLong')
+            if start_ms:
+                start_date = datetime.fromtimestamp(int(start_ms) / 1000, tz=timezone.utc)
+            if end_ms:
+                end_date = datetime.fromtimestamp(int(end_ms) / 1000, tz=timezone.utc)
+        except (TypeError, ValueError):
+            pass
+
+        schedule.append({
+            'tournId': event.get('tournId', ''),
+            'name': event.get('name', ''),
+            'start_date': start_date.strftime('%b %d') if start_date else 'TBD',
+            'end_date': end_date.strftime('%b %d, %Y') if end_date else '',
+            'is_future': start_date > now if start_date else False,
+        })
+    return schedule
+
 
 @app.route('/admin')
 @admin_required
@@ -1741,31 +1731,7 @@ def admin_dashboard():
     year = int(request.args.get('year', datetime.now().year))
     org_id = request.args.get('org', '1')
     raw_schedule = fetch_tournament_schedule(year, org_id) or []
-    now = datetime.now(timezone.utc)
-
-    schedule = []
-    for event in raw_schedule:
-        # Parse MongoDB-style date fields
-        start_date = None
-        end_date = None
-        try:
-            date_obj = event.get('date', {})
-            start_ms = date_obj.get('start', {}).get('$date', {}).get('$numberLong')
-            end_ms = date_obj.get('end', {}).get('$date', {}).get('$numberLong')
-            if start_ms:
-                start_date = datetime.fromtimestamp(int(start_ms) / 1000, tz=timezone.utc)
-            if end_ms:
-                end_date = datetime.fromtimestamp(int(end_ms) / 1000, tz=timezone.utc)
-        except (TypeError, ValueError):
-            pass
-
-        schedule.append({
-            'tournId': event.get('tournId', ''),
-            'name': event.get('name', ''),
-            'start_date': start_date.strftime('%b %d') if start_date else 'TBD',
-            'end_date': end_date.strftime('%b %d, %Y') if end_date else '',
-            'is_future': start_date > now if start_date else False,
-        })
+    schedule = _parse_api_schedule(raw_schedule)
 
     api_connected = bool(os.getenv('GOLF_API_KEY'))
 
@@ -1840,15 +1806,12 @@ def admin_activate_tournament():
     db.commit()
 
     # Auto-refresh golfers so the pick form isn't empty after activation
-    tournament = db.execute(
-        "SELECT external_id, season_year FROM tournaments WHERE id = ?",
-        [tournament_id]
-    ).fetchone()
+    tournament = get_tournament_external_info(tournament_id)
     if tournament:
         refresh_golfers_from_api(tournament_id, tournament[0], tournament[1])
 
     # Clear all caches
-    _cache.clear()
+    clear_tournament_cache()
 
     return redirect(url_for('admin_dashboard'))
 
@@ -1882,17 +1845,11 @@ def admin_refresh_golfers():
     if not tournament_id:
         return redirect(url_for('admin_dashboard'))
 
-    db = get_db()
-    tournament = db.execute(
-        "SELECT external_id, season_year FROM tournaments WHERE id = ?",
-        [tournament_id]
-    ).fetchone()
+    tournament = get_tournament_external_info(tournament_id)
 
     if tournament:
         refresh_golfers_from_api(tournament_id, tournament[0], tournament[1])
-        # Clear caches
-        _cache.pop(f'leaderboard_{tournament_id}', None)
-        _cache.pop(f'players_{tournament_id}', None)
+        clear_tournament_cache(tournament_id)
 
     return redirect(url_for('admin_dashboard'))
 
@@ -1934,8 +1891,7 @@ def admin_fetch_dk_salaries():
 
     db.commit()
 
-    # Clear caches
-    _cache.clear()
+    clear_tournament_cache()
 
     logger.info(f"DK salaries: {matched}/{len(golfers)} golfers matched from {contest_name}")
     if unmatched_golfers:
@@ -1963,8 +1919,7 @@ def admin_delete_tournament():
     db.execute("DELETE FROM tournaments WHERE id = ?", [tournament_id])
     db.commit()
 
-    # Clear caches
-    _cache.clear()
+    clear_tournament_cache()
 
     return redirect(url_for('admin_dashboard'))
 
@@ -2103,14 +2058,7 @@ def admin_manage_tiers(tournament_id):
     override_count = 0
 
     for i, row in enumerate(golfers):
-        # Compute what tier would be without override
-        if i < 5:
-            computed_tier = 1
-        elif i < 16:
-            computed_tier = 2
-        else:
-            computed_tier = 3
-
+        computed_tier = compute_tier(i)
         override = row[3]
         effective_tier = override if override else computed_tier
         is_overridden = override is not None
@@ -2182,9 +2130,7 @@ def admin_save_tiers():
 
     db.commit()
 
-    # Clear caches
-    _cache.pop(f'leaderboard_{tournament_id}', None)
-    _cache.pop(f'players_{tournament_id}', None)
+    clear_tournament_cache(tournament_id)
 
     return redirect(url_for('admin_manage_tiers', tournament_id=tournament_id))
 
@@ -2205,9 +2151,7 @@ def admin_reset_tiers():
     )
     db.commit()
 
-    # Clear caches
-    _cache.pop(f'leaderboard_{tournament_id}', None)
-    _cache.pop(f'players_{tournament_id}', None)
+    clear_tournament_cache(tournament_id)
 
     return redirect(url_for('admin_manage_tiers', tournament_id=tournament_id))
 
@@ -2269,8 +2213,7 @@ def auto_refresh_golfers():
     success = refresh_golfers_from_api(tournament_id, external_id, year)
 
     if success:
-        _cache.pop(f'leaderboard_{tournament_id}', None)
-        _cache.pop(f'players_{tournament_id}', None)
+        clear_tournament_cache(tournament_id)
         logger.info(f"Auto-refresh completed for tournament {external_id}")
 
     return {

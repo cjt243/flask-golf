@@ -9,6 +9,11 @@ module.exports = {
     'bg-green-600/20', 'text-green-400',
     'bg-blue-600/20', 'text-blue-400',
     'bg-gray-600/20', 'text-gray-400',
+    // Dynamic classes in macros.html form_button: bg-{{ color }}-600/500
+    'bg-green-600', 'hover:bg-green-500',
+    'bg-blue-600', 'hover:bg-blue-500',
+    'bg-red-600', 'hover:bg-red-500',
+    'bg-yellow-600', 'hover:bg-yellow-500',
   ],
   theme: {
     extend: {

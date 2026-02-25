@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import form_button %}
 {% set show_nav = true %}
 {% set active_tab = 'admin' %}
 
@@ -119,20 +120,8 @@
                             <td class="px-4 py-3 text-gray-400">{{ req.created_at }}</td>
                             <td class="px-4 py-3 text-right">
                                 <div class="flex items-center justify-end space-x-2">
-                                    <form action="/admin/approve-user" method="POST" class="inline">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                        <input type="hidden" name="request_id" value="{{ req.id }}">
-                                        <button type="submit" class="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-500 text-white rounded transition-colors">
-                                            Approve
-                                        </button>
-                                    </form>
-                                    <form action="/admin/reject-user" method="POST" class="inline" data-confirm="Reject access request from {{ req.display_name }}?">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                        <input type="hidden" name="request_id" value="{{ req.id }}">
-                                        <button type="submit" class="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-500 text-white rounded transition-colors">
-                                            Reject
-                                        </button>
-                                    </form>
+                                    {{ form_button('/admin/approve-user', 'Approve', field_name='request_id', field_value=req.id, color='green') }}
+                                    {{ form_button('/admin/reject-user', 'Reject', field_name='request_id', field_value=req.id, color='red', confirm='Reject access request from ' + req.display_name + '?') }}
                                 </div>
                             </td>
                         </tr>
@@ -167,13 +156,7 @@
                     <div class="flex items-center justify-between">
                         <div class="flex items-center space-x-2">
                             <!-- Refresh Golfers -->
-                            <form action="/admin/refresh-golfers" method="POST" class="inline">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <input type="hidden" name="tournament_id" value="{{ t.id }}">
-                                <button type="submit" class="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors" title="Fetch latest golfer data from API">
-                                    Refresh
-                                </button>
-                            </form>
+                            {{ form_button('/admin/refresh-golfers', 'Refresh', field_value=t.id) }}
 
                             <!-- Toggle Picks Lock -->
                             <form action="/admin/toggle-picks-lock" method="POST" class="inline">
@@ -193,13 +176,7 @@
 
                             <!-- Activate -->
                             {% if not t.is_active %}
-                            <form action="/admin/activate-tournament" method="POST" class="inline">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <input type="hidden" name="tournament_id" value="{{ t.id }}">
-                                <button type="submit" class="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-500 text-white rounded transition-colors">
-                                    Activate
-                                </button>
-                            </form>
+                            {{ form_button('/admin/activate-tournament', 'Activate', field_value=t.id, color='green') }}
                             {% endif %}
                         </div>
 
@@ -275,7 +252,7 @@
                                     <input type="hidden" name="external_id" value="{{ event.tournId }}">
                                     <input type="hidden" name="name" value="{{ event.name }}">
                                     <input type="hidden" name="season_year" value="{{ year }}">
-                                    <button type="submit" class="px-3 py-1 text-xs bg-green-600 hover:bg-green-500 text-white rounded transition-colors">
+                                    <button type="submit" class="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-500 text-white rounded transition-colors">
                                         Create
                                     </button>
                                 </form>

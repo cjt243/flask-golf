@@ -15,9 +15,17 @@ def _insert_tournament(db, tid=None, active=True):
     return tid
 
 
+def _format_score(score):
+    if score is None:
+        return '--'
+    if score == 0:
+        return 'E'
+    return f'+{score}' if score > 0 else str(score)
+
+
 def _insert_golfer(db, tid, name, total_score, status='active'):
     gid = secrets.token_hex(16)
-    display = app_module.format_score(total_score)
+    display = _format_score(total_score)
     db.execute(
         "INSERT INTO golfers (id, tournament_id, name, external_id, total_score, score_display, status) "
         "VALUES (?, ?, ?, ?, ?, ?, ?)",

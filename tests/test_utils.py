@@ -3,28 +3,6 @@
 import app as app_module
 
 
-# ── format_score ────────────────────────────────────────────────────────────
-
-class TestFormatScore:
-    def test_none_returns_dashes(self):
-        assert app_module.format_score(None) == '--'
-
-    def test_zero_returns_even(self):
-        assert app_module.format_score(0) == 'E'
-
-    def test_negative_score(self):
-        assert app_module.format_score(-5) == '-5'
-
-    def test_positive_score(self):
-        assert app_module.format_score(3) == '+3'
-
-    def test_large_positive(self):
-        assert app_module.format_score(15) == '+15'
-
-    def test_large_negative(self):
-        assert app_module.format_score(-12) == '-12'
-
-
 # ── parse_score_to_int ─────────────────────────────────────────────────────
 
 class TestParseScoreToInt:

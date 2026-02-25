@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS auth_tokens (
     created_at TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_auth_tokens_email ON auth_tokens(email);
+CREATE INDEX IF NOT EXISTS idx_auth_tokens_expires ON auth_tokens(expires_at);
 
 -- Sessions
 CREATE TABLE IF NOT EXISTS sessions (
@@ -37,6 +38,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(session_token_hash);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
 
 -- Tournaments
 CREATE TABLE IF NOT EXISTS tournaments (
