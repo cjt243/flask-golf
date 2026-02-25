@@ -48,6 +48,55 @@
             </div>
         </div>
 
+        <!-- Auto-Refresh Schedule -->
+        <div class="mb-6 p-4 rounded-lg bg-gray-800 border border-gray-700">
+            <form action="/admin/update-refresh-schedule" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="flex items-center mb-3">
+                    <svg class="w-4 h-4 text-blue-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span class="text-sm font-medium text-white">Auto-Refresh Schedule</span>
+                    <span class="ml-2 text-xs text-gray-400">Scores refresh hourly within this window</span>
+                </div>
+                <div class="flex flex-wrap items-end gap-4">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Start (UTC)</label>
+                        <select name="start_hour" class="px-2 py-1.5 text-sm bg-gray-700 border border-gray-600 rounded text-white">
+                            {% for h in range(24) %}
+                            <option value="{{ h }}" {% if refresh_schedule.start_hour == h %}selected{% endif %}>{{ '%02d:00'|format(h) }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">End (UTC)</label>
+                        <select name="end_hour" class="px-2 py-1.5 text-sm bg-gray-700 border border-gray-600 rounded text-white">
+                            {% for h in range(24) %}
+                            <option value="{{ h }}" {% if refresh_schedule.end_hour == h %}selected{% endif %}>{{ '%02d:00'|format(h) }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Days</label>
+                        <div class="flex gap-1">
+                            {% set day_labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}
+                            {% for i in range(7) %}
+                            <label class="flex items-center justify-center w-10 h-8 text-xs rounded cursor-pointer transition-colors
+                                {% if i in refresh_schedule.days %}bg-blue-600 text-white{% else %}bg-gray-700 text-gray-400 hover:bg-gray-600{% endif %}">
+                                <input type="checkbox" name="days" value="{{ i }}" {% if i in refresh_schedule.days %}checked{% endif %} class="sr-only"
+                                    onchange="this.parentElement.classList.toggle('bg-blue-600'); this.parentElement.classList.toggle('text-white'); this.parentElement.classList.toggle('bg-gray-700'); this.parentElement.classList.toggle('text-gray-400');">
+                                {{ day_labels[i] }}
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <button type="submit" class="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors">
+                        Save
+                    </button>
+                </div>
+            </form>
+        </div>
+
         <!-- Pending Access Requests -->
         {% if access_requests %}
         <section class="mb-10">
@@ -77,7 +126,7 @@
                                             Approve
                                         </button>
                                     </form>
-                                    <form action="/admin/reject-user" method="POST" class="inline" onsubmit="return confirm('Reject access request from {{ req.display_name }}?')">
+                                    <form action="/admin/reject-user" method="POST" class="inline" data-confirm="Reject access request from {{ req.display_name }}?">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <input type="hidden" name="request_id" value="{{ req.id }}">
                                         <button type="submit" class="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-500 text-white rounded transition-colors">
@@ -155,7 +204,7 @@
                         </div>
 
                         <!-- Delete (separated from other actions) -->
-                        <form action="/admin/delete-tournament" method="POST" class="inline" onsubmit="return confirm('Delete {{ t.name }}? This will remove all entries and golfer data.')">
+                        <form action="/admin/delete-tournament" method="POST" class="inline" data-confirm="Delete {{ t.name }}? This will remove all entries and golfer data.">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="tournament_id" value="{{ t.id }}">
                             <button type="submit" class="px-3 py-1.5 text-xs bg-transparent border border-red-600/50 text-red-400 hover:bg-red-600 hover:text-white rounded transition-colors">
@@ -279,4 +328,16 @@
                 </div>
             </form>
         </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.querySelectorAll('form[data-confirm]').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            if (!confirm(this.dataset.confirm)) {
+                e.preventDefault();
+            }
+        });
+    });
+</script>
 {% endblock %}

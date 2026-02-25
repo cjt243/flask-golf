@@ -1,0 +1,38 @@
+name: Auto-refresh golfer scores
+
+on:
+  schedule:
+    # Every hour. The app checks its own configurable schedule
+    # (admin panel > Refresh Schedule) and returns early if outside
+    # tournament hours — so this is safe to run 24/7.
+    - cron: '0 * * * *'
+
+  workflow_dispatch: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh golfer scores
+        run: |
+          response=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            -H "X-API-Key: ${{ secrets.GOLF_API_KEY }}" \
+            "${{ secrets.APP_URL }}/api/auto-refresh")
+
+          http_code=$(echo "$response" | tail -1)
+          body=$(echo "$response" | head -n -1)
+
+          echo "Response code: $http_code"
+          echo "Body: $body"
+
+          if [ "$http_code" = "200" ]; then
+            echo "Refresh successful"
+          elif [ "$http_code" = "401" ]; then
+            echo "::error::Authentication failed — check GOLF_API_KEY secret"
+            exit 1
+          elif [ "$http_code" = "502" ]; then
+            echo "::warning::Golf API returned an error (upstream issue)"
+          else
+            echo "::warning::Unexpected response code: $http_code"
+          fi

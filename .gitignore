@@ -11,3 +11,4 @@ venv/
 .cursorignore
 admin/
 og_task.txt
+node_modules/

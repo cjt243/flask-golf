@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom utility: card glow effect used across leaderboard and pick form */
+.card-glow {
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.08), 0 4px 12px rgba(0, 0, 0, 0.3);
+}

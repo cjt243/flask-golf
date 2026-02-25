@@ -15,6 +15,7 @@ import hashlib
 import unicodedata
 from datetime import datetime, timedelta, timezone
 from functools import wraps
+from urllib.parse import urlparse
 
 import libsql_experimental as libsql
 import requests
@@ -362,6 +363,59 @@ def is_registration_open():
         return True
 
 
+def get_refresh_schedule():
+    """Get the auto-refresh schedule from app_settings.
+
+    Returns dict with start_hour, end_hour (UTC, 0-23), and days (list of
+    weekday ints, 0=Monday..6=Sunday).
+
+    Defaults: Thu-Sun (3,4,5,6), 12:00-00:00 UTC (8am-8pm ET).
+    """
+    defaults = {'start_hour': 12, 'end_hour': 0, 'days': [3, 4, 5, 6]}
+    try:
+        db = get_db()
+        row = db.execute("SELECT value FROM app_settings WHERE key = 'refresh_schedule'").fetchone()
+        if row:
+            import json
+            return json.loads(row[0])
+    except Exception:
+        pass
+    return defaults
+
+
+def save_refresh_schedule(start_hour, end_hour, days):
+    """Save the auto-refresh schedule to app_settings."""
+    import json
+    schedule = {'start_hour': int(start_hour), 'end_hour': int(end_hour), 'days': sorted(days)}
+    db = get_db()
+    db.execute(
+        "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('refresh_schedule', ?)",
+        [json.dumps(schedule)]
+    )
+    db.commit()
+
+
+def is_within_refresh_window():
+    """Check if the current UTC time falls within the configured refresh schedule."""
+    schedule = get_refresh_schedule()
+    now = datetime.now(timezone.utc)
+    current_hour = now.hour
+    current_day = now.weekday()  # 0=Monday..6=Sunday
+
+    if current_day not in schedule['days']:
+        return False
+
+    start = schedule['start_hour']
+    end = schedule['end_hour']
+
+    if start <= end:
+        # Simple range, e.g. 8-20
+        return start <= current_hour < end
+    else:
+        # Wraps midnight, e.g. 12-0 means 12:00 UTC through 23:59 UTC
+        return current_hour >= start or current_hour < end
+
+
 # Rate Limiting
 # =============================================================================
 
@@ -475,7 +529,7 @@ def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not g.user:
-            return redirect(url_for('auth_login', next=request.url))
+            return redirect(url_for('auth_login', next=request.path))
         return f(*args, **kwargs)
     return decorated
 
@@ -485,7 +539,7 @@ def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not g.user:
-            return redirect(url_for('auth_login', next=request.url))
+            return redirect(url_for('auth_login', next=request.path))
         if not g.user.get('is_admin'):
             abort(403)
         return f(*args, **kwargs)
@@ -514,14 +568,18 @@ def create_session(user_id):
     return session_token, expires_at
 
 
-def send_magic_link(email, token):
+def send_magic_link(email, token, next_url=''):
     """Send magic link email via Resend."""
     api_key = os.getenv('RESEND_API_KEY')
     email_from = os.getenv('EMAIL_FROM', 'picks@updates.cullin.link')
 
+    verify_url = f"{request.host_url}auth/verify?token={token}&email={email}"
+    if next_url:
+        verify_url += f"&next={next_url}"
+
     if not api_key:
         # Development mode - print to console
-        logger.info(f"MAGIC LINK for {email}: {request.host_url}auth/verify?token={token}&email={email}")
+        logger.info(f"MAGIC LINK for {email}: {verify_url}")
         return True
 
     resend.api_key = api_key
@@ -531,20 +589,7 @@ def send_magic_link(email, token):
             "from": email_from,
             "to": email,
             "subject": "Sign in to 80 Yard Bombs Cup",
-            "html": f"""
-            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #16a34a;">Sign in to 80 Yard Bombs Cup</h2>
-                <p>Click the button below to sign in. This link expires in 10 minutes.</p>
-                <a href="{request.host_url}auth/verify?token={token}&email={email}"
-                   style="display: inline-block; background: #16a34a; color: white; padding: 12px 24px;
-                          text-decoration: none; border-radius: 8px; margin: 16px 0;">
-                    Sign In
-                </a>
-                <p style="color: #666; font-size: 14px;">
-                    If you didn't request this email, you can safely ignore it.
-                </p>
-            </div>
-            """
+            "html": render_template('emails/magic_link.html', verify_url=verify_url)
         })
         return True
     except Exception as e:
@@ -568,23 +613,18 @@ def send_admin_notification(requester_name, requester_email):
 
     resend.api_key = api_key
 
+    email_html = render_template('emails/admin_notification.html',
+                                  requester_name=requester_name,
+                                  requester_email=requester_email,
+                                  admin_url=f"{request.host_url}admin")
+
     for admin_email in admin_emails:
         try:
             resend.Emails.send({
                 "from": email_from,
                 "to": admin_email,
                 "subject": f"New Access Request: {requester_name}",
-                "html": f"""
-                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h2 style="color: #16a34a;">New Access Request</h2>
-                    <p><strong>{requester_name}</strong> ({requester_email}) has requested access to the 80 Yard Bombs Cup.</p>
-                    <a href="{request.host_url}admin"
-                       style="display: inline-block; background: #16a34a; color: white; padding: 12px 24px;
-                              text-decoration: none; border-radius: 8px; margin: 16px 0;">
-                        Review Request
-                    </a>
-                </div>
-                """
+                "html": email_html
             })
         except Exception as e:
             logger.error(f"Error sending admin notification to {admin_email}: {e}")
@@ -606,17 +646,9 @@ def send_approval_email(email, name):
             "from": email_from,
             "to": email,
             "subject": "You've been approved - 80 Yard Bombs Cup",
-            "html": f"""
-            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #16a34a;">Welcome to the 80 Yard Bombs Cup!</h2>
-                <p>Hi {name}, your access request has been approved. You can now sign in and start making picks.</p>
-                <a href="{request.host_url}auth/login"
-                   style="display: inline-block; background: #16a34a; color: white; padding: 12px 24px;
-                          text-decoration: none; border-radius: 8px; margin: 16px 0;">
-                    Sign In
-                </a>
-            </div>
-            """
+            "html": render_template('emails/approval.html',
+                                    name=name,
+                                    login_url=f"{request.host_url}auth/login")
         })
         return True
     except Exception as e:
@@ -1183,8 +1215,9 @@ def auth_request_link():
     """, [email, token_hash, expires_at.isoformat()])
     db.commit()
 
-    # Send email
-    send_magic_link(email, raw_token)
+    # Send email (carry `next` URL through the magic link)
+    next_url = request.form.get('next', '')
+    send_magic_link(email, raw_token, next_url=next_url)
     log_security_event('magic_link_sent', request, email=email)
 
     return render_template('check_email.html', email=email)
@@ -1257,8 +1290,17 @@ def auth_verify():
     session_token, expires_at = create_session(user_id)
     log_security_event('login', request, user_id=user_id, email=email)
 
+    # Determine redirect destination (honor `next` param, prevent open redirect)
+    next_url = request.args.get('next', '')
+    parsed = urlparse(next_url)
+    # Only allow relative paths (no scheme, no external host)
+    if next_url and not parsed.scheme and not parsed.netloc and next_url.startswith('/'):
+        redirect_to = next_url
+    else:
+        redirect_to = url_for('make_picks')
+
     # Set cookie and redirect
-    response = make_response(redirect(url_for('make_picks')))
+    response = make_response(redirect(redirect_to))
     response.set_cookie(
         'golf_session',
         session_token,
@@ -1742,6 +1784,7 @@ def admin_dashboard():
     } for r in pending_requests]
 
     registration_open = is_registration_open()
+    refresh_schedule = get_refresh_schedule()
 
     return render_template('admin.html',
                          tournaments=tournament_list,
@@ -1751,6 +1794,7 @@ def admin_dashboard():
                          api_connected=api_connected,
                          access_requests=access_requests,
                          registration_open=registration_open,
+                         refresh_schedule=refresh_schedule,
                          user=g.user)
 
 
@@ -1794,6 +1838,14 @@ def admin_activate_tournament():
     db.execute("UPDATE tournaments SET is_active = 0")
     db.execute("UPDATE tournaments SET is_active = 1 WHERE id = ?", [tournament_id])
     db.commit()
+
+    # Auto-refresh golfers so the pick form isn't empty after activation
+    tournament = db.execute(
+        "SELECT external_id, season_year FROM tournaments WHERE id = ?",
+        [tournament_id]
+    ).fetchone()
+    if tournament:
+        refresh_golfers_from_api(tournament_id, tournament[0], tournament[1])
 
     # Clear all caches
     _cache.clear()
@@ -2005,6 +2057,24 @@ def admin_toggle_registration():
     return redirect(url_for('admin_dashboard'))
 
 
+@app.route('/admin/update-refresh-schedule', methods=['POST'])
+@admin_required
+@csrf_required
+def admin_update_refresh_schedule():
+    """Update the auto-refresh schedule for golfer scores."""
+    start_hour = int(request.form.get('start_hour', 12))
+    end_hour = int(request.form.get('end_hour', 0))
+    days = [int(d) for d in request.form.getlist('days')]
+
+    # Validate
+    if not (0 <= start_hour <= 23) or not (0 <= end_hour <= 23):
+        return redirect(url_for('admin_dashboard'))
+    days = [d for d in days if 0 <= d <= 6]
+
+    save_refresh_schedule(start_hour, end_hour, days)
+    return redirect(url_for('admin_dashboard'))
+
+
 @app.route('/admin/manage-tiers/<tournament_id>')
 @admin_required
 def admin_manage_tiers(tournament_id):
@@ -2181,6 +2251,11 @@ def auto_refresh_golfers():
 
     if not is_api_auth and not is_admin_auth:
         return {'error': 'unauthorized'}, 401
+
+    # Check configurable refresh schedule (skip for manual admin triggers)
+    force = request.args.get('force') == '1'
+    if not force and is_api_auth and not is_within_refresh_window():
+        return {'status': 'outside_refresh_window', 'timestamp': time.time()}, 200
 
     db = get_db()
     tournament = db.execute(

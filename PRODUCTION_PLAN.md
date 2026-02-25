@@ -5,7 +5,7 @@
 ### 1. Replace Tailwind CDN with static CSS build
 
 **Priority**: P1
-**Status**: Pending
+**Status**: Done
 
 `cdn.tailwindcss.com` is the dev-only JIT compiler (~300KB, causes FOUC on every page load). Tailwind docs explicitly say not to use it in production.
 
@@ -18,7 +18,7 @@
 ### 2. Configure auto-refresh cron for golfer scores
 
 **Priority**: P1
-**Status**: Pending
+**Status**: Done
 
 The `/api/auto-refresh` endpoint exists and works (API key auth via `X-API-Key` header, reuses `GOLF_API_KEY`). But nothing is calling it on a schedule. During live tournaments, an admin must manually click "Refresh Golfers" — not sustainable.
 
@@ -33,7 +33,7 @@ The `/api/auto-refresh` endpoint exists and works (API key auth via `X-API-Key` 
 ### 3. Honor the `next` parameter after login
 
 **Priority**: P2
-**Status**: Pending
+**Status**: Done
 
 `@login_required` passes `next=request.url` to the login page, but `auth_verify` always redirects to `/make_picks`. Users who click a deep link while logged out don't return to the page they wanted.
 
@@ -46,7 +46,7 @@ The `/api/auto-refresh` endpoint exists and works (API key auth via `X-API-Key` 
 ### 4. Set up CI/CD pipeline
 
 **Priority**: P2
-**Status**: Pending
+**Status**: Done
 
 78 pytest tests exist but only run manually. No automated testing on push/PR.
 
@@ -59,7 +59,7 @@ The `/api/auto-refresh` endpoint exists and works (API key auth via `X-API-Key` 
 ### 5. Python version mismatch (dev 3.12, prod 3.10)
 
 **Priority**: P3
-**Status**: Pending
+**Status**: Done
 
 Local dev uses Python 3.12, but `runtime.txt` specifies `python-3.10.14` for DigitalOcean. This works today but could cause subtle differences (e.g., `tomllib` built-in in 3.11+, exception groups in 3.11+, `match` statement in 3.10+).
 
@@ -72,7 +72,7 @@ Local dev uses Python 3.12, but `runtime.txt` specifies `python-3.10.14` for Dig
 ### 6. Move email templates out of inline Python strings
 
 **Priority**: P3
-**Status**: Pending
+**Status**: Done
 
 Magic link and notification emails are built as HTML string concatenation inside Python functions in `app.py`. Hard to read, maintain, and style.
 
@@ -85,7 +85,7 @@ Magic link and notification emails are built as HTML string concatenation inside
 ### 7. Admin template XSS pattern cleanup
 
 **Priority**: P2
-**Status**: Pending
+**Status**: Done
 
 `admin.html` has `onsubmit="return confirm('Delete {{ t.name }}?')"` and similar patterns that inject Jinja2 template variables directly into inline JavaScript. Data is HTML-escaped at storage time so this is safe today, but it's a fragile pattern — a future developer could introduce stored XSS without realizing it.
 
@@ -99,10 +99,10 @@ Magic link and notification emails are built as HTML string concatenation inside
 
 | # | Item | Status | Date | Notes |
 |---|------|--------|------|-------|
-| 1 | Replace Tailwind CDN with static CSS | Pending | | |
-| 2 | Configure auto-refresh cron | Pending | | |
-| 3 | Honor `next` parameter after login | Pending | | |
-| 4 | Set up CI/CD pipeline | Pending | | |
-| 5 | Python version mismatch | Pending | | |
-| 6 | Email templates out of inline strings | Pending | | |
-| 7 | Admin template XSS cleanup | Pending | | |
+| 1 | Replace Tailwind CDN with static CSS | Done | 2026-02-24 | Built via Tailwind CLI, 28KB minified. `npm run build:css` to rebuild. |
+| 2 | Configure auto-refresh cron | Done | 2026-02-24 | GH Actions hourly cron + admin-configurable schedule (hours/days). Tournament activation auto-refreshes. |
+| 3 | Honor `next` parameter after login | Done | 2026-02-24 | `next` carried through login → email → verify. Validates relative paths only. |
+| 4 | Set up CI/CD pipeline | Done | 2026-02-24 | `.github/workflows/test.yml` runs pytest on push/PR to main. |
+| 5 | Python version mismatch | Done | 2026-02-24 | `runtime.txt` updated to `python-3.12.7`. |
+| 6 | Email templates out of inline strings | Done | 2026-02-24 | Moved to `templates/emails/{magic_link,admin_notification,approval}.html`. |
+| 7 | Admin template XSS cleanup | Done | 2026-02-24 | Replaced inline `onsubmit` confirm with `data-confirm` attributes + event listener. |
