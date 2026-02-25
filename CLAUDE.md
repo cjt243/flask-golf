@@ -59,7 +59,7 @@ Turso/libSQL via `libsql_experimental`. The `LibSQLConnectionWrapper` auto-conve
 
 **User names**: `users` and `access_requests` tables have `first_name` + `last_name` columns. Leaderboard shows "First L." under entry names.
 
-**Migrations**: `_run_migrations()` runs on every app startup. It handles ALTER TABLE additions. `CREATE TABLE IF NOT EXISTS` won't add columns — use the migration list for schema changes.
+**Migrations**: `_run_migrations()` runs on every app startup. It handles ALTER TABLE additions and `CREATE INDEX IF NOT EXISTS` for performance indexes. `CREATE TABLE IF NOT EXISTS` won't add columns — use the migration list for schema changes.
 
 ### Golf API
 
@@ -67,11 +67,11 @@ Slash Golf API via RapidAPI (`live-golf-data.p.rapidapi.com`). Endpoints: `/sche
 
 ### Caching
 
-In-memory dict, 5-minute TTL, per-worker (not shared). Cleared on pick submission, tournament activation, golfer refresh.
+In-memory dict, 5-minute TTL, per-worker (not shared). Use `clear_tournament_cache(tournament_id)` to clear specific caches, or `clear_tournament_cache()` to clear all. Called on pick submission, tournament activation, golfer refresh, and tier changes.
 
 ### Tailwind CSS
 
-Static build via Tailwind CLI v3.4. Custom colors: golf-green, golf-gold, turf (mapped from Tailwind green/amber defaults). `admin_tiers.html` uses dynamic classes safelisted in config.
+Static build via Tailwind CLI v3.4. Custom colors: golf-green, golf-gold, turf (mapped from Tailwind green/amber defaults). `admin_tiers.html` and `macros.html` use dynamic Tailwind classes — all safelisted in `tailwind.config.js`.
 
 ```bash
 npm run build:css                    # Rebuild after template changes
@@ -89,6 +89,10 @@ export PATH="$HOME/.local/share/fnm:$PATH" && eval "$(fnm env)"
 - Logging via `logging.getLogger('flask_golf')`
 - Security events logged to `security_events` table
 - Templates extend `base.html` — nav, footer, Tailwind config are shared. Use `{% set show_nav = true %}` and `{% set active_tab = '...' %}` for authenticated pages
+- `templates/macros.html` provides `form_button()` (admin action forms) and `empty_state()` (no-data cards) macros — import with `{% from "macros.html" import form_button, empty_state %}`
+- Shared helpers reduce duplication: `format_last_updated()`, `clear_tournament_cache()`, `get_tournament_external_info()`, `compute_tier()` with `TIER_BOUNDARIES` constant
+- Rate limiting uses `INSERT ... ON CONFLICT DO UPDATE` upsert pattern
+- Token verification logic lives in `_verify_magic_token()`, API schedule parsing in `_parse_api_schedule()`, player name extraction in `_extract_player_name()`
 - Session cleanup is probabilistic (~1% of authenticated requests)
 - No linter/formatter configured — match existing code style
 - Commits: descriptive messages summarizing the change
