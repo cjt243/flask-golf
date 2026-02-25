@@ -15,7 +15,7 @@ import hashlib
 import unicodedata
 from datetime import datetime, timedelta, timezone
 from functools import wraps
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import libsql_experimental as libsql
 import requests
@@ -575,7 +575,7 @@ def send_magic_link(email, token, next_url=''):
 
     verify_url = f"{request.host_url}auth/verify?token={token}&email={email}"
     if next_url:
-        verify_url += f"&next={next_url}"
+        verify_url += f"&next={quote(next_url, safe='/')}"
 
     if not api_key:
         # Development mode - print to console
