@@ -962,9 +962,10 @@ def refresh_golfers_from_api(tournament_id, tournament_external_id, year=None):
     # Handle leaderboard or tournament field response format
     # API uses 'leaderboardRows' for leaderboard data, 'players' for tournament field
     leaderboard = data.get('leaderboardRows', []) or data.get('leaderboard', []) or data.get('players', [])
-    cut_line = data.get('cutLine')
-    if not cut_line and data.get('cutLines'):
-        cut_line = data['cutLines'][0].get('cutScore')
+    cut_line_raw = data.get('cutLine')
+    if not cut_line_raw and data.get('cutLines'):
+        cut_line_raw = data['cutLines'][0].get('cutScore')
+    cut_line = parse_score_to_int(cut_line_raw) if cut_line_raw is not None else None
 
     for player in leaderboard:
         name = _extract_player_name(player)
