@@ -140,18 +140,13 @@ The app connects to **production Turso DB** even in local dev (same instance).
 
 GitHub Actions runs pytest on push/PR to `main` (`.github/workflows/test.yml`). Auto-refresh cron runs hourly during tournament windows (`.github/workflows/auto-refresh.yml`). Required GitHub Actions secrets: `GOLF_API_KEY`, `APP_URL`.
 
-## TODO
+## Cut Line Modifier (Leaderboard Scoring)
 
-### Cut Line Modifier (Leaderboard Scoring)
-
-The league uses a cut line modifier that adjusts golfer scores on the leaderboard based on whether they made or missed the cut. The `cut_line` value is stored as an integer in `tournament_metadata` (parsed from the API via `parse_score_to_int()`).
+The `apply_cut_modifier()` helper adjusts golfer scores on the leaderboard based on whether they made or missed the cut. The `cut_line` value is stored as an integer in `tournament_metadata` (parsed from the API via `parse_score_to_int()`).
 
 **Rules:**
-- **Missed cut**: Golfer's score is set to the cut line value. Example: cut is +1, golfer missed at +7 → leaderboard score becomes +1.
-- **Made cut**: Golfer's minimum score is capped at even par (0), even if they shoot over par on the weekend. Example: cut is +1, golfer makes cut but finishes at +2 → leaderboard score becomes E (0).
-- If a golfer makes the cut and finishes under par, their actual score is used (no adjustment).
+- **Missed cut** (`status == 'cut'`): score = `cut_line`. Example: cut is +1, golfer missed at +7 → score becomes +1.
+- **Made cut** (any other status): score = `min(actual_score, cut_line - 1)`. Example: cut is +1, golfer at +3 → score becomes 0 (cut_line - 1).
+- If a golfer makes the cut and finishes under the cap, their actual score is used (no adjustment).
 
-**Implementation notes:**
-- This modifier applies only to the **leaderboard display** (team score calculation in `compute_leaderboard()`), not to the raw golfer data stored in the `golfers` table.
-- The `cut_line` integer and each golfer's `status` field (`'cut'` vs `'active'`/`'complete'`) provide all data needed.
-- The `total_score` in the `golfers` table should remain the real score; the modifier is applied at computation time.
+**Applied in:** `compute_leaderboard()` (team scores), leaderboard route `player_scores` dict, player standings route `TOTAL_SCORE_INTEGER`. Raw `total_score` in the `golfers` table is never modified.

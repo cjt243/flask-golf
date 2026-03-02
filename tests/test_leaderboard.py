@@ -34,6 +34,14 @@ def _insert_golfer(db, tid, name, total_score, status='active'):
     db.commit()
 
 
+def _insert_metadata(db, tid, cut_line):
+    db.execute(
+        "INSERT INTO tournament_metadata (tournament_id, cut_line) VALUES (?, ?)",
+        [tid, cut_line],
+    )
+    db.commit()
+
+
 def _insert_entry(db, tid, user_id, entry_name, golfers):
     eid = secrets.token_hex(16)
     db.execute(
@@ -184,3 +192,112 @@ class TestComputePlayerStandings:
 
         g1 = next(g for g in golfers if g['name'] == 'G1')
         assert 'Selectors' in g1['selections']
+
+
+class TestApplyCutModifier:
+    """Unit tests for apply_cut_modifier()."""
+
+    def test_missed_cut_returns_cut_line(self):
+        assert app_module.apply_cut_modifier(7, 'cut', 1) == 1
+
+    def test_made_cut_over_cap(self):
+        # Cut line +1, golfer at +3 → capped at cut_line - 1 = 0
+        assert app_module.apply_cut_modifier(3, 'active', 1) == 0
+
+    def test_made_cut_under_par(self):
+        # Under par is better than cap — use actual score
+        assert app_module.apply_cut_modifier(-2, 'active', 1) == -2
+
+    def test_made_cut_at_cap_exactly(self):
+        # Score equals cut_line - 1 → no change
+        assert app_module.apply_cut_modifier(0, 'active', 1) == 0
+
+    def test_none_cut_line_passthrough(self):
+        assert app_module.apply_cut_modifier(5, 'active', None) == 5
+
+    def test_none_score_passthrough(self):
+        assert app_module.apply_cut_modifier(None, 'active', 1) is None
+
+    def test_negative_cut_line(self):
+        # Cut at -1: missed → -1, made at +2 → -2
+        assert app_module.apply_cut_modifier(2, 'cut', -1) == -1
+        assert app_module.apply_cut_modifier(2, 'active', -1) == -2
+
+    def test_complete_status_treated_as_made_cut(self):
+        assert app_module.apply_cut_modifier(3, 'complete', 1) == 0
+
+
+class TestCutLineModifier:
+    """Integration tests: cut modifier through compute_leaderboard()."""
+
+    def test_missed_cut_team_score(self, app_instance, db):
+        tid = _insert_tournament(db)
+        _insert_metadata(db, tid, 1)
+        uid = _insert_user(db, 'cut1@test.com')
+        # All 5 golfers missed cut at various scores — each becomes +1
+        for name in ['G1', 'G2', 'G3', 'G4', 'G5']:
+            _insert_golfer(db, tid, name, 5, status='cut')
+        _insert_entry(db, tid, uid, 'Cut Team', ['G1', 'G2', 'G3', 'G4', 'G5'])
+
+        with app_instance.app_context():
+            results, _ = app_module.compute_leaderboard(tid)
+
+        # Each golfer: cut_line = 1, so 5 * 1 = 5
+        assert results[0]['team_score'] == 5
+
+    def test_made_cut_capped_score(self, app_instance, db):
+        tid = _insert_tournament(db)
+        _insert_metadata(db, tid, 1)
+        uid = _insert_user(db, 'cut2@test.com')
+        # 5 golfers who made cut but finished over par
+        for name in ['G1', 'G2', 'G3', 'G4', 'G5']:
+            _insert_golfer(db, tid, name, 3, status='active')
+        _insert_entry(db, tid, uid, 'Cap Team', ['G1', 'G2', 'G3', 'G4', 'G5'])
+
+        with app_instance.app_context():
+            results, _ = app_module.compute_leaderboard(tid)
+
+        # Each capped at cut_line - 1 = 0, so 5 * 0 = 0
+        assert results[0]['team_score'] == 0
+
+    def test_under_par_actual_score_used(self, app_instance, db):
+        tid = _insert_tournament(db)
+        _insert_metadata(db, tid, 1)
+        uid = _insert_user(db, 'cut3@test.com')
+        for name in ['G1', 'G2', 'G3', 'G4', 'G5']:
+            _insert_golfer(db, tid, name, -4, status='complete')
+        _insert_entry(db, tid, uid, 'Under Par', ['G1', 'G2', 'G3', 'G4', 'G5'])
+
+        with app_instance.app_context():
+            results, _ = app_module.compute_leaderboard(tid)
+
+        # -4 < 0 (cut_line - 1), so actual score used: 5 * -4 = -20
+        assert results[0]['team_score'] == -20
+
+    def test_no_metadata_no_modifier(self, app_instance, db):
+        tid = _insert_tournament(db)
+        # No metadata inserted
+        uid = _insert_user(db, 'cut4@test.com')
+        for name in ['G1', 'G2', 'G3', 'G4', 'G5']:
+            _insert_golfer(db, tid, name, 5, status='cut')
+        _insert_entry(db, tid, uid, 'No Meta', ['G1', 'G2', 'G3', 'G4', 'G5'])
+
+        with app_instance.app_context():
+            results, _ = app_module.compute_leaderboard(tid)
+
+        # No cut_line → raw scores used: 5 * 5 = 25
+        assert results[0]['team_score'] == 25
+
+    def test_missing_golfer_still_gets_999(self, app_instance, db):
+        tid = _insert_tournament(db)
+        _insert_metadata(db, tid, 1)
+        uid = _insert_user(db, 'cut5@test.com')
+        for name in ['G1', 'G2', 'G3', 'G4']:
+            _insert_golfer(db, tid, name, -2, status='active')
+        _insert_entry(db, tid, uid, 'Missing', ['G1', 'G2', 'G3', 'G4', 'Gone'])
+
+        with app_instance.app_context():
+            results, _ = app_module.compute_leaderboard(tid)
+
+        # 4 golfers at -2 (under cap, actual used) + 999 for missing
+        assert results[0]['team_score'] == 4 * -2 + 999

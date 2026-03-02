@@ -768,11 +768,21 @@ def get_entries(tournament_id):
     } for r in results]
 
 
+def apply_cut_modifier(score, status, cut_line):
+    """Apply cut line modifier for leaderboard scoring."""
+    if cut_line is None or score is None:
+        return score
+    if status == 'cut':
+        return cut_line
+    return min(score, cut_line - 1)
+
+
 def compute_leaderboard(tournament_id):
     """Compute leaderboard from entries and golfer scores."""
     entries = get_entries(tournament_id)
     golfers = {g['name']: g for g in get_golfers(tournament_id)}
     metadata = get_tournament_metadata(tournament_id)
+    cut_line = metadata.get('cut_line') if metadata else None
 
     results = []
     for entry in entries:
@@ -787,6 +797,8 @@ def compute_leaderboard(tournament_id):
             score = golfer.get('total_score')
             if score is None:
                 score = 999  # Missing golfer gets high score
+            else:
+                score = apply_cut_modifier(score, golfer.get('status'), cut_line)
             total_score += score
             pick_details.append({
                 'name': pick,
@@ -1449,10 +1461,12 @@ def leaderboard():
 
     # Build player scores dict for template
     golfers = get_golfers(tournament['id'])
+    cut_line = metadata.get('cut_line') if metadata else None
     player_scores = {}
     for g_data in golfers:
+        display_score = apply_cut_modifier(g_data['total_score'], g_data['status'], cut_line)
         player_scores[g_data['name']] = {
-            'score': g_data['total_score'],
+            'score': display_score,
             'status': g_data['status']
         }
 
@@ -1509,13 +1523,14 @@ def player_standings():
         set_cache(cache_key, (golfers, metadata, last_updated))
 
     # Format for template
+    cut_line = metadata.get('cut_line') if metadata else None
     template_results = []
     for g_data in golfers:
         template_results.append({
             'TOURNAMENT': tournament['name'],
             'POSITION': g_data['position'] or '--',
             'GOLFER': g_data['name'],
-            'TOTAL_SCORE_INTEGER': g_data['total_score'],
+            'TOTAL_SCORE_INTEGER': apply_cut_modifier(g_data['total_score'], g_data['status'], cut_line),
             'CURRENT_ROUND_SCORE': g_data['current_round_score'] or '--',
             'ROUND_ID': g_data['round_number'] or 1,
             'THRU': g_data['thru'] or '--',
