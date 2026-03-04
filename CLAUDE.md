@@ -14,7 +14,7 @@ Flask Golf is a single-file Flask web app for a fantasy golf league ("80 Yard Bo
 
 | File / Dir | Purpose |
 |------------|---------|
-| `app.py` | Entire application (~2300 lines) |
+| `app.py` | Entire application (~2500 lines) |
 | `schema.sql` | Database schema (Turso/libSQL) |
 | `templates/*.html` | 13 Jinja2 page templates — all extend `base.html`; `macros.html` has shared macros |
 | `templates/emails/*.html` | 3 email templates (magic_link, admin_notification, approval) |
@@ -86,13 +86,23 @@ Golfers are assigned to 3 tiers based on DK salary ranking (higher salary = bett
 
 Once `picks_locked=True`, the full leaderboard renders normally.
 
+**Choices.js styling**: `pick_form.html` includes a full CSS theme override in `<style>` block. Dropdowns use the app's gray-800/900 palette (not the library defaults or the old dark-green theme). Selected chips are green-600, hover highlights use a subtle `rgba(22, 163, 74, 0.15)` tint. The `maxItemText` config shows "All 2 picks made" instead of the default notice.
+
 **Helpers**: `_build_tier_lists(golfers)` extracts tier-sorting logic (shared by both new-entry and editing paths). `_render_pick_form()` accepts `editing=False` and `existing_entry=None` defaults.
 
-### Player Standings Responsive Layout
+### Player Standings
 
 `player_standings.html` uses a dual layout for the `/players` page:
 - **Mobile (<640px)**: Card-based layout (`sm:hidden`). Each golfer is a compact card with position badge, name, status (round/thru or CUT), and color-coded score. Tap to expand details (current round, thru, tee time, "Selected By" team chips). `togglePlayerDetail()` handles expand/collapse with chevron rotation. `event.stopPropagation()` on team chips prevents toggling the card.
-- **Desktop (>=640px)**: Original 9-column table (`hidden sm:block`), unchanged.
+- **Desktop (>=640px)**: Table layout (`hidden sm:block`).
+
+**Filter bar** (sticky top): Player search input, team filter dropdown, "Hide CUT" checkbox. `filterPlayers()` applies all filters across both mobile cards and desktop rows. `filterCount` span updates visible count.
+
+**View toggle**: "Tournament" (default, sorted by position) vs "By Tier" (grouped by tier with divider rows). `setView('tournament'|'tier')` toggles visibility via `data-view` attribute. Tier computed in `app.py` via `compute_tier()` on DK salary sort order, passed as `TIER` in template results.
+
+**Tier badges**: Small colored dots next to golfer names — gold (Tier 1), green (Tier 2), muted green (Tier 3). CSS class `.tier-dot`.
+
+**Template context**: `all_teams` (sorted unique team names) computed in `app.py` and passed to template for the filter dropdown.
 
 Team chip highlighting (`toggleTeamHighlight()` / `updateRowHighlighting()`) works across both layouts — mobile cards use a `data-team-names` attribute for matching.
 
