@@ -14,6 +14,17 @@
             <p class="text-sm text-gray-400 mt-1">{{ tournament_name }}</p>
         </div>
 
+        <!-- DK Fetch Feedback -->
+        {% if request.args.get('dk_msg') == 'success' %}
+        <div class="mb-4 p-3 rounded-lg bg-green-900/30 border border-green-700 text-green-300 text-sm">
+            Matched {{ request.args.get('dk_matched', '?') }}/{{ request.args.get('dk_total', '?') }} golfers from <strong>{{ request.args.get('dk_contest', 'DraftKings') }}</strong>
+        </div>
+        {% elif request.args.get('dk_msg') == 'fetch_failed' %}
+        <div class="mb-4 p-3 rounded-lg bg-red-900/30 border border-red-700 text-red-300 text-sm">
+            DK salary fetch failed — no contest data returned. Salaries may not be available yet for this week.
+        </div>
+        {% endif %}
+
         <!-- Stats Bar -->
         <div class="mb-6 flex items-center space-x-4 text-sm">
             <span class="text-gray-400">{{ golfer_count }} golfers</span>
@@ -50,9 +61,9 @@
             ] %}
             {% else %}
             {% set tiers = [
-                ('Tier 1', 'Top 5 by OWGR', tier_1, 'green'),
-                ('Tier 2', 'Ranked 6-16 by OWGR', tier_2, 'blue'),
-                ('Tier 3', 'Ranked 17+ by OWGR', tier_3, 'gray')
+                ('Tier 1', 'Top 5 by DK salary', tier_1, 'green'),
+                ('Tier 2', 'Ranked 6-16 by DK salary', tier_2, 'blue'),
+                ('Tier 3', 'Ranked 17+ by DK salary', tier_3, 'gray')
             ] %}
             {% endif %}
 
@@ -71,7 +82,7 @@
                             <tr>
                                 <th class="px-4 py-2 text-left font-medium text-gray-300 w-10">#</th>
                                 <th class="px-4 py-2 text-left font-medium text-gray-300">Golfer</th>
-                                <th class="px-4 py-2 text-left font-medium text-gray-300 w-24">{% if has_dk_data %}DK Salary{% else %}OWGR{% endif %}</th>
+                                <th class="px-4 py-2 text-left font-medium text-gray-300 w-24">DK Salary</th>
                                 <th class="px-4 py-2 text-right font-medium text-gray-300 w-40">Tier</th>
                             </tr>
                         </thead>
@@ -85,7 +96,7 @@
                                     <span class="ml-2 px-1.5 py-0.5 text-[10px] bg-purple-600/40 text-purple-300 rounded">moved</span>
                                     {% endif %}
                                 </td>
-                                <td class="px-4 py-2 text-gray-400">{% if has_dk_data %}{{ '${:,}'.format(g.dk_salary) if g.dk_salary else '—' }}{% else %}{{ g.owgr_rank or '—' }}{% endif %}</td>
+                                <td class="px-4 py-2 text-gray-400">{{ '${:,}'.format(g.dk_salary) if g.dk_salary else '—' }}</td>
                                 <td class="px-4 py-2 text-right">
                                     <select name="tier_{{ g.id }}"
                                         class="px-2 py-1 text-xs bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:border-purple-500">

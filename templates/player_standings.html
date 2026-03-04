@@ -71,7 +71,7 @@
             </div>
             <div class="bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700">
                 <div class="text-2xl font-bold text-red-400">
-                    {% if cut_line %}
+                    {% if cut_line is not none %}
                         {% if cut_line > 0 %}+{{ cut_line|int }}{% elif cut_line < 0 %}{{ cut_line|int }}{% else %}E{% endif %}
                     {% else %}N/A{% endif %}
                 </div>
@@ -215,7 +215,7 @@
                     <ul class="space-y-1 text-gray-300">
                         <li><span class="text-red-400">CUT:</span> Missed the cut</li>
                         <li><strong>Cut Line:</strong>
-                            {% if cut_line %}
+                            {% if cut_line is not none %}
                                 {% if cut_line > 0 %}+{{ cut_line|int }}{% elif cut_line < 0 %}{{ cut_line|int }}{% else %}E{% endif %}
                             {% else %}N/A{% endif %}
                         </li>

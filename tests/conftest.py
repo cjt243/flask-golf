@@ -141,8 +141,8 @@ def seed_tournament(db):
         gid = secrets.token_hex(16)
         db.execute(
             "INSERT INTO golfers (id, tournament_id, name, external_id, position, total_score, "
-            "score_display, status, owgr_rank) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            [gid, tid, name, str(i), str(i + 1), i - 5, format_score_for_seed(i - 5), 'active', i + 1],
+            "score_display, status, dk_salary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [gid, tid, name, str(i), str(i + 1), i - 5, format_score_for_seed(i - 5), 'active', 10000 - (i * 500)],
         )
     db.commit()
 

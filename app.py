@@ -720,7 +720,7 @@ def get_golfers(tournament_id):
     db = get_db()
     results = db.execute("""
         SELECT name, position, total_score, score_display, current_round_score,
-               round_number, thru, tee_time, status, owgr_rank, last_updated,
+               round_number, thru, tee_time, status, last_updated,
                tier_override, dk_salary
         FROM golfers WHERE tournament_id = ? ORDER BY total_score ASC NULLS LAST
     """, [tournament_id]).fetchall()
@@ -735,10 +735,9 @@ def get_golfers(tournament_id):
         'thru': r[6],
         'tee_time': r[7],
         'status': r[8],
-        'owgr_rank': r[9],
-        'last_updated': r[10],
-        'tier_override': r[11],
-        'dk_salary': r[12]
+        'last_updated': r[9],
+        'tier_override': r[10],
+        'dk_salary': r[11]
     } for r in results]
 
 
@@ -975,9 +974,12 @@ def refresh_golfers_from_api(tournament_id, tournament_external_id, year=None):
     # API uses 'leaderboardRows' for leaderboard data, 'players' for tournament field
     leaderboard = data.get('leaderboardRows', []) or data.get('leaderboard', []) or data.get('players', [])
     cut_line_raw = data.get('cutLine')
-    if not cut_line_raw and data.get('cutLines'):
+    if cut_line_raw is None and data.get('cutLines'):
         cut_line_raw = data['cutLines'][0].get('cutScore')
-    cut_line = parse_score_to_int(cut_line_raw) if cut_line_raw is not None else None
+    # API cutScore = score needed to make the cut; app cut_line = score
+    # assigned to missed-cut golfers (one stroke worse), so add 1
+    cut_line_parsed = parse_score_to_int(cut_line_raw) if cut_line_raw is not None else None
+    cut_line = cut_line_parsed + 1 if cut_line_parsed is not None else None
 
     for player in leaderboard:
         name = _extract_player_name(player)
@@ -999,8 +1001,8 @@ def refresh_golfers_from_api(tournament_id, tournament_external_id, year=None):
         db.execute("""
             INSERT INTO golfers (id, tournament_id, name, external_id, position, total_score,
                                  score_display, current_round_score, round_number, thru,
-                                 tee_time, status, owgr_rank, last_updated)
-            VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                                 tee_time, status, last_updated)
+            VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
             ON CONFLICT(tournament_id, name) DO UPDATE SET
                 position = excluded.position,
                 total_score = excluded.total_score,
@@ -1010,7 +1012,6 @@ def refresh_golfers_from_api(tournament_id, tournament_external_id, year=None):
                 thru = excluded.thru,
                 tee_time = excluded.tee_time,
                 status = excluded.status,
-                owgr_rank = excluded.owgr_rank,
                 last_updated = datetime('now')
         """, [
             tournament_id,
@@ -1023,8 +1024,7 @@ def refresh_golfers_from_api(tournament_id, tournament_external_id, year=None):
             _api_int(player.get('currentRound', player.get('round', 1))),
             player.get('thru', ''),
             player.get('teeTime', ''),
-            status,
-            _api_int(player.get('owgr', player.get('ranking')))
+            status
         ])
 
     # Update metadata
@@ -1589,12 +1589,8 @@ def make_picks():
         return _render_pick_form(tournament_name=tournament['name'], picks_locked=False,
                                  first=[], second=[], third=[], is_fallback=False)
 
-    # Sort by DK salary (higher is better) if available, else OWGR rank (lower is better)
-    has_dk_data = any(gl.get('dk_salary') for gl in golfers)
-    if has_dk_data:
-        golfers.sort(key=lambda x: x['dk_salary'] or 0, reverse=True)
-    else:
-        golfers.sort(key=lambda x: x['owgr_rank'] or 999)
+    # Sort by DK salary (higher is better)
+    golfers.sort(key=lambda x: x['dk_salary'] or 0, reverse=True)
 
     # Split into tiers (tier_override takes precedence over index-based computation)
     first = []
@@ -1884,7 +1880,8 @@ def admin_fetch_dk_salaries():
 
     if salaries is None:
         logger.warning("DK salary fetch failed — no data returned")
-        return redirect(url_for('admin_manage_tiers', tournament_id=tournament_id))
+        return redirect(url_for('admin_manage_tiers', tournament_id=tournament_id,
+                                dk_msg='fetch_failed'))
 
     db = get_db()
     golfers = db.execute(
@@ -1915,7 +1912,9 @@ def admin_fetch_dk_salaries():
     if unmatched_dk:
         logger.info(f"DK unmatched players (in DK, not in DB): {list(unmatched_dk)[:20]}")
 
-    return redirect(url_for('admin_manage_tiers', tournament_id=tournament_id))
+    return redirect(url_for('admin_manage_tiers', tournament_id=tournament_id,
+                            dk_msg='success', dk_matched=matched,
+                            dk_total=len(golfers), dk_contest=contest_name))
 
 
 @app.route('/admin/delete-tournament', methods=['POST'])
@@ -2058,14 +2057,14 @@ def admin_manage_tiers(tournament_id):
     if not tournament:
         return redirect(url_for('admin_dashboard'))
 
-    # Get golfers sorted by DK salary (if available) then OWGR rank
+    # Get golfers sorted by DK salary (higher = better)
     golfers = db.execute("""
-        SELECT id, name, owgr_rank, tier_override, dk_salary
+        SELECT id, name, tier_override, dk_salary
         FROM golfers WHERE tournament_id = ?
-        ORDER BY dk_salary DESC NULLS LAST, owgr_rank ASC NULLS LAST
+        ORDER BY dk_salary DESC NULLS LAST
     """, [tournament_id]).fetchall()
 
-    has_dk_data = any(row[4] for row in golfers)
+    has_dk_data = any(row[3] for row in golfers)
 
     # Build golfer list with computed and effective tiers
     tier_1 = []
@@ -2075,7 +2074,7 @@ def admin_manage_tiers(tournament_id):
 
     for i, row in enumerate(golfers):
         computed_tier = compute_tier(i)
-        override = row[3]
+        override = row[2]
         effective_tier = override if override else computed_tier
         is_overridden = override is not None
 
@@ -2085,12 +2084,11 @@ def admin_manage_tiers(tournament_id):
         entry = {
             'id': row[0],
             'name': row[1],
-            'owgr_rank': row[2],
             'computed_tier': computed_tier,
             'effective_tier': effective_tier,
             'tier_override': override,
             'is_overridden': is_overridden,
-            'dk_salary': row[4],
+            'dk_salary': row[3],
         }
 
         if effective_tier == 1:
