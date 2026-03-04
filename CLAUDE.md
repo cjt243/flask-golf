@@ -16,7 +16,7 @@ Flask Golf is a single-file Flask web app for a fantasy golf league ("80 Yard Bo
 |------------|---------|
 | `app.py` | Entire application (~2300 lines) |
 | `schema.sql` | Database schema (Turso/libSQL) |
-| `templates/*.html` | 12 Jinja2 page templates — all extend `base.html`; `macros.html` has shared macros |
+| `templates/*.html` | 13 Jinja2 page templates — all extend `base.html`; `macros.html` has shared macros |
 | `templates/emails/*.html` | 3 email templates (magic_link, admin_notification, approval) |
 | `static/css/styles.css` | Tailwind CSS output (28KB minified) |
 | `static/src/input.css` | Tailwind CSS source |
@@ -41,7 +41,10 @@ Flask Golf is a single-file Flask web app for a fantasy golf league ("80 Yard Bo
 | `/auth/logout` | CSRF | Destroy session |
 | `/auth/request-access` | Public | Invite-only registration form |
 | `/auth/submit-access-request` | CSRF | Submit access request |
+| `/submit-feedback` | Login+CSRF | Submit feedback from floating widget (JSON response) |
 | `/admin` + sub-routes | Admin | Tournament management, user approval, tiers, refresh schedule |
+| `/admin/feedback` | Admin | View/filter user feedback (open/resolved/all) |
+| `/admin/feedback/toggle` | Admin+CSRF | Toggle feedback resolved status |
 | `/health` | Public | Health check JSON |
 | `/clear_cache` | Admin | Clear in-memory cache |
 | `/api/auto-refresh` | API Key/Admin | Automated golfer score refresh (POST) |
@@ -55,7 +58,7 @@ Magic link email → Argon2-hashed tokens → SHA-256 session cookies (7-day exp
 
 Turso/libSQL via `libsql_experimental`. The `LibSQLConnectionWrapper` auto-converts list params to tuples. All queries use parameterized SQL (no ORM).
 
-**Tables**: `users`, `auth_tokens`, `sessions`, `tournaments`, `entries`, `golfers`, `tournament_metadata`, `rate_limits`, `security_events`, `access_requests`, `app_settings`, `failed_logins`
+**Tables**: `users`, `auth_tokens`, `sessions`, `tournaments`, `entries`, `golfers`, `tournament_metadata`, `rate_limits`, `security_events`, `access_requests`, `app_settings`, `failed_logins`, `feedback`
 
 **User names**: `users` and `access_requests` tables have `first_name` + `last_name` columns. Leaderboard shows "First L." under entry names.
 
@@ -76,6 +79,10 @@ Golfers are assigned to 3 tiers based on DK salary ranking (higher salary = bett
 ### Caching
 
 In-memory dict, 5-minute TTL, per-worker (not shared). Use `clear_tournament_cache(tournament_id)` to clear specific caches, or `clear_tournament_cache()` to clear all. Called on pick submission, tournament activation, golfer refresh, and tier changes.
+
+### Feedback Widget
+
+Floating speech bubble button (bottom-right) on all authenticated pages (`{% if show_nav %}` block in `base.html`). Opens a popover with a textarea; submits via `fetch()` POST to `/submit-feedback`. Feedback stored in `feedback` table with `user_id`, `page_url`, `message`, and `resolved` flag. Admin view at `/admin/feedback` with Open/Resolved/All filter tabs and per-item toggle button. Linked from the admin dashboard.
 
 ### Tailwind CSS
 
