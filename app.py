@@ -1547,6 +1547,7 @@ def player_standings():
                              last_updated='N/A',
                              cut_line=None,
                              is_fallback=True,
+                             all_teams=[],
                              user=g.user)
 
     cache_key = f'players_{tournament["id"]}'
@@ -1563,10 +1564,26 @@ def player_standings():
 
         set_cache(cache_key, (golfers, metadata, last_updated))
 
-    # Format for template
+    # Format for template — compute tiers by DK salary ranking
     cut_line = metadata.get('cut_line') if metadata else None
+
+    # Sort by DK salary to assign tiers (same logic as _build_tier_lists)
+    salary_sorted = sorted(golfers, key=lambda x: x['dk_salary'] or 0, reverse=True)
+    golfer_tiers = {}
+    for idx, gd in enumerate(salary_sorted):
+        golfer_tiers[gd['name']] = compute_tier(idx, gd.get('tier_override'))
+
+    # Build unique team list for filter dropdown
+    all_teams = []
     template_results = []
     for g_data in golfers:
+        tier = golfer_tiers.get(g_data['name'], 3)
+        selections = g_data['selections']
+        if selections and selections.strip():
+            for t in selections.split(','):
+                t = t.strip()
+                if t and t not in all_teams:
+                    all_teams.append(t)
         template_results.append({
             'TOURNAMENT': tournament['name'],
             'POSITION': g_data['position'] or '--',
@@ -1577,8 +1594,9 @@ def player_standings():
             'THRU': g_data['thru'] or '--',
             'TEE_TIME': g_data['tee_time'] or '--',
             'PLAYER_STATUS': g_data['status'] or 'active',
-            'SELECTIONS': g_data['selections'],
-            'CUT_LINE': metadata.get('cut_line') if metadata else None
+            'SELECTIONS': selections,
+            'CUT_LINE': metadata.get('cut_line') if metadata else None,
+            'TIER': tier,
         })
 
     return render_template('player_standings.html',
@@ -1587,6 +1605,7 @@ def player_standings():
                          last_updated=last_updated,
                          cut_line=metadata.get('cut_line') if metadata else None,
                          is_fallback=False,
+                         all_teams=sorted(all_teams),
                          user=g.user)
 
 

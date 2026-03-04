@@ -19,10 +19,10 @@
         font-size: 0.9375rem; /* 15px */
     }
 
-    /* The visible "input box" area */
+    /* The visible "input box" area — matches entry name input */
     .choices__inner {
-        background-color: #1f2d22 !important; /* deep turf, darker than card */
-        border: 1px solid #2d4a34 !important;
+        background-color: rgba(17, 24, 39, 0.6) !important;
+        border: 1px solid rgba(75, 85, 99, 0.6) !important;
         border-radius: 0.5rem !important;
         padding: 0.625rem 0.75rem !important;
         min-height: 2.75rem !important;
@@ -32,8 +32,8 @@
 
     .choices.is-focused .choices__inner,
     .choices.is-open .choices__inner {
-        border-color: #16a34a !important;
-        box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15) !important;
+        border-color: #22c55e !important;
+        box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15) !important;
         outline: none !important;
     }
 
@@ -57,8 +57,8 @@
         display: inline-flex;
         align-items: center;
         gap: 0.375rem;
-        background-color: #15803d !important;
-        border: 1px solid #166534 !important;
+        background-color: #16a34a !important;
+        border: 1px solid #15803d !important;
         color: #d1fae5 !important;
         border-radius: 0.375rem !important;
         padding: 0.25rem 0.5rem 0.25rem 0.625rem !important;
@@ -101,10 +101,10 @@
     /* Dropdown panel */
     .choices__list--dropdown,
     .choices__list[aria-expanded] {
-        background-color: #1a2e1f !important;
-        border: 1px solid #2d4a34 !important;
+        background-color: #1f2937 !important;
+        border: 1px solid rgba(75, 85, 99, 0.6) !important;
         border-radius: 0.5rem !important;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(22, 163, 74, 0.08) !important;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
         margin-top: 0.25rem !important;
         overflow: hidden !important;
         z-index: 30 !important;
@@ -112,8 +112,8 @@
 
     /* Dropdown search box */
     .choices__list--dropdown .choices__input {
-        background-color: #0f2517 !important;
-        border-bottom: 1px solid #2d4a34 !important;
+        background-color: rgba(17, 24, 39, 0.6) !important;
+        border-bottom: 1px solid rgba(55, 65, 81, 0.5) !important;
         padding: 0.625rem 0.75rem !important;
         font-size: 0.875rem !important;
     }
@@ -123,7 +123,7 @@
         padding: 0.5rem 0.875rem !important;
         font-size: 0.875rem !important;
         color: #d1d5db !important;
-        border-bottom: 1px solid #1f2d22;
+        border-bottom: 1px solid rgba(55, 65, 81, 0.3);
         transition: background-color 0.1s, color 0.1s;
         cursor: pointer;
     }
@@ -132,9 +132,9 @@
         border-bottom: none;
     }
 
-    /* Rank badge inside option text — styled via JS data attribute */
+    /* Highlighted option on hover/keyboard */
     .choices__list--dropdown .choices__item--selectable.is-highlighted {
-        background-color: #166534 !important;
+        background-color: rgba(22, 163, 74, 0.15) !important;
         color: #f0fdf4 !important;
     }
 
@@ -145,12 +145,19 @@
         cursor: not-allowed;
     }
 
-    /* "No results" / "No choices" messages */
+    /* "No results" / "No choices" / max-item messages */
     .choices__list--dropdown .choices__notice {
         color: #6b7280 !important;
         font-style: italic;
         padding: 0.75rem !important;
         font-size: 0.8125rem !important;
+        background-color: transparent !important;
+    }
+
+    /* Prevent .is-highlighted from overriding notice styling */
+    .choices__list--dropdown .choices__notice.is-highlighted {
+        background-color: transparent !important;
+        color: #6b7280 !important;
     }
 
     /* Ensure dropdown starts closed */
@@ -439,6 +446,7 @@ document.addEventListener('DOMContentLoaded', () => {
         placeholderValue: 'Search and select golfers...',
         noResultsText: 'No golfers found',
         noChoicesText: 'No more options',
+        maxItemText: (max) => `All ${max} picks made`,
         itemSelectText: '',   // suppress the "Press to select" hint
         classNames: {
             containerOuter: 'choices',

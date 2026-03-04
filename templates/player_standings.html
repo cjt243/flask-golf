@@ -6,34 +6,12 @@
 
 {% block head_extra %}
     <style>
-        /* Fix sticky column layering */
-        .sticky {
-            position: sticky;
-            z-index: 10;
-        }
-
-        /* Ensure proper stacking of sticky elements */
-        thead th.sticky {
-            z-index: 30;
-        }
-
-        tbody td.sticky {
-            z-index: 20;
-        }
-
-        /* Team chip hover effects */
-        .team-chip {
-            transition: all 0.2s ease;
-        }
-
-        .team-chip:active {
-            transform: scale(0.95);
-        }
-
-        /* Wide table container for chips */
-        .overflow-x-auto {
-            min-width: 100%;
-        }
+        .team-chip { transition: all 0.2s ease; }
+        .team-chip:active { transform: scale(0.95); }
+        .player-row { transition: opacity 0.2s ease; }
+        .player-card { transition: opacity 0.2s ease, border-color 0.2s ease; }
+        .tier-divider td { padding: 0; }
+        .tier-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
     </style>
 {% endblock %}
 
@@ -44,111 +22,131 @@
     </div>
 {% endblock %}
 
-{% block main_class %}max-w-7xl mx-auto px-4 py-8{% endblock %}
+{% block main_class %}max-w-4xl mx-auto px-4 py-6{% endblock %}
 
 {% block content %}
-        <!-- Stats Summary Cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-8">
-            <div class="bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700">
-                <div class="text-2xl font-bold text-golf-green-500">
-                    {% set all_teams = [] %}
-                    {% for row in results %}
-                        {% if row.SELECTIONS and row.SELECTIONS|string != "0" and row.SELECTIONS.strip() %}
-                            {% for team_name in row.SELECTIONS.split(',') %}
-                                {% if team_name.strip() and team_name.strip() not in all_teams %}
-                                    {% set _ = all_teams.append(team_name.strip()) %}
-                                {% endif %}
-                            {% endfor %}
+        {# --- Filter Bar --- #}
+        <div class="sticky top-0 z-40 mb-4">
+            <div class="bg-gray-800/95 backdrop-blur-sm border border-gray-700 rounded-xl px-4 py-3 shadow-lg">
+                <div class="flex items-center gap-2">
+                    <div class="relative flex-1">
+                        <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                        <input type="text" id="playerSearch" placeholder="Search players..."
+                               class="w-full pl-8 pr-3 py-1.5 bg-gray-900/60 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-golf-green-600 focus:ring-1 focus:ring-golf-green-600"
+                               oninput="filterPlayers()">
+                    </div>
+                    <select id="teamFilter" onchange="filterPlayers()"
+                            class="py-1.5 px-3 bg-gray-900/60 border border-gray-700 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-golf-green-600 appearance-none cursor-pointer min-w-[110px]">
+                        <option value="">All Teams</option>
+                        {% for team in all_teams|default([]) %}
+                        <option value="{{ team }}">{{ team }}</option>
+                        {% endfor %}
+                    </select>
+                    <label class="hidden sm:flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer select-none whitespace-nowrap">
+                        <input type="checkbox" id="hideCut" onchange="filterPlayers()" class="rounded border-gray-600 bg-gray-800 text-golf-green-600 focus:ring-golf-green-600 focus:ring-offset-0">
+                        Hide CUT
+                    </label>
+                </div>
+
+                {# --- View Toggle + Count --- #}
+                <div class="flex items-center justify-between mt-2 pt-2 border-t border-gray-700/50">
+                    <div class="flex items-center gap-4 text-xs text-gray-500">
+                        <span id="filterCount">{{ results|length }} players</span>
+                        {% if cut_line is not none %}
+                        <span>Cut: <span class="text-red-400 font-medium">{% if cut_line > 0 %}+{{ cut_line|int }}{% elif cut_line < 0 %}{{ cut_line|int }}{% else %}E{% endif %}</span></span>
                         {% endif %}
-                    {% endfor %}
-                    {% if all_teams|length == 0 %}&mdash;{% else %}{{ all_teams|length }}{% endif %}
+                    </div>
+                    <div class="inline-flex rounded-lg bg-gray-900/60 border border-gray-700 p-0.5" role="group">
+                        <button type="button" id="btn-tournament" onclick="setView('tournament')"
+                                class="px-3 py-1 text-[11px] font-medium rounded-md transition-colors">
+                            Tournament
+                        </button>
+                        <button type="button" id="btn-tier" onclick="setView('tier')"
+                                class="px-3 py-1 text-[11px] font-medium rounded-md transition-colors">
+                            By Tier
+                        </button>
+                    </div>
                 </div>
-                <div class="text-xs text-gray-400 uppercase tracking-wide">{% if all_teams|length == 0 %}No Picks Yet{% else %}Total Teams Entered{% endif %}</div>
-            </div>
-            <div class="bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700">
-                <div class="text-2xl font-bold text-golf-gold-400">{{ results|length }}</div>
-                <div class="text-xs text-gray-400 uppercase tracking-wide">Unique Players Selected</div>
-            </div>
-            <div class="bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700">
-                <div class="text-2xl font-bold text-red-400">
-                    {% if cut_line is not none %}
-                        {% if cut_line > 0 %}+{{ cut_line|int }}{% elif cut_line < 0 %}{{ cut_line|int }}{% else %}E{% endif %}
-                    {% else %}N/A{% endif %}
-                </div>
-                <div class="text-xs text-gray-400 uppercase tracking-wide">Cut Line</div>
             </div>
         </div>
 
-        <!-- Mobile Card Layout -->
-        <div class="sm:hidden space-y-2 mb-8">
+        {# --- Mobile Card Layout --- #}
+        <div id="mobileContainer" class="sm:hidden space-y-px mb-6">
+            {% set ns = namespace(prev_tier=0) %}
             {% for row in results %}
-            <div class="player-card bg-gray-800 rounded-xl border border-gray-700 overflow-hidden"
+            {# Tier divider #}
+            {% if row.TIER != ns.prev_tier %}
+            <div class="tier-header flex items-center gap-2 pt-{% if loop.first %}1{% else %}4{% endif %} pb-1.5" data-tier="{{ row.TIER }}">
+                <span class="text-[10px] font-bold uppercase tracking-widest
+                    {% if row.TIER == 1 %}text-golf-gold-400{% elif row.TIER == 2 %}text-blue-400{% else %}text-purple-400{% endif %}">
+                    Tier {{ row.TIER }}
+                </span>
+                <div class="flex-1 border-t {% if row.TIER == 1 %}border-golf-gold-400/30{% elif row.TIER == 2 %}border-blue-400/30{% else %}border-purple-400/30{% endif %}"></div>
+            </div>
+            {% set ns.prev_tier = row.TIER %}
+            {% endif %}
+
+            <div class="player-card bg-gray-800 rounded-lg border border-gray-700/60 overflow-hidden"
+                 data-name="{{ row.GOLFER|lower }}"
+                 data-status="{{ row.PLAYER_STATUS|lower }}"
+                 data-tier="{{ row.TIER }}"
+                 data-sort-pos="{{ loop.index }}"
+                 data-score="{{ row.TOTAL_SCORE_INTEGER if row.TOTAL_SCORE_INTEGER is not none else 999 }}"
                  data-team-names="{% if row.SELECTIONS and row.SELECTIONS|string != '0' %}{% for t in row.SELECTIONS.split(',') %}{{ t.strip() }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}">
-                <!-- Card Header (always visible) -->
-                <div class="flex items-center px-3 py-3 cursor-pointer" onclick="togglePlayerDetail(this.parentElement)">
-                    <!-- Position Badge -->
-                    <div class="flex-shrink-0 w-9">
-                        {% if row.POSITION == "T1" or row.POSITION == "1" %}
-                        <div class="w-7 h-7 bg-gradient-to-br from-yellow-400 to-yellow-600 text-yellow-900 rounded-full flex items-center justify-center text-xs font-bold">
-                            {{ row.POSITION }}
-                        </div>
-                        {% elif row.POSITION in ["T2", "2", "T3", "3"] %}
-                        <div class="w-7 h-7 bg-gradient-to-br from-gray-300 to-gray-500 text-gray-900 rounded-full flex items-center justify-center text-xs font-bold">
-                            {{ row.POSITION }}
-                        </div>
+                <div class="flex items-center px-3 py-1.5 cursor-pointer" onclick="togglePlayerDetail(this.parentElement)">
+                    {# Position #}
+                    <div class="flex-shrink-0 w-7 text-center">
+                        {% if row.POSITION in ["1", "T1"] %}
+                        <span class="inline-flex items-center justify-center w-6 h-6 bg-gradient-to-br from-yellow-400 to-yellow-600 text-yellow-900 rounded-full text-[10px] font-bold">{{ row.POSITION }}</span>
+                        {% elif row.POSITION in ["2", "T2", "3", "T3"] %}
+                        <span class="inline-flex items-center justify-center w-6 h-6 bg-gradient-to-br from-gray-300 to-gray-500 text-gray-900 rounded-full text-[10px] font-bold">{{ row.POSITION }}</span>
                         {% else %}
-                        <div class="text-gray-300 font-medium text-sm">{{ row.POSITION }}</div>
+                        <span class="text-gray-400 text-xs font-medium">{{ row.POSITION }}</span>
                         {% endif %}
                     </div>
 
-                    <!-- Player Name + Compact Status -->
+                    {# Tier dot + Name #}
                     <div class="flex-1 min-w-0 mx-2">
-                        <div class="font-medium text-gray-100 text-sm truncate">{{ row.GOLFER }}</div>
-                        <div class="flex items-center gap-1.5 mt-0.5">
+                        <div class="flex items-center gap-1.5">
+                            <span class="tier-dot {% if row.TIER == 1 %}bg-golf-gold-400{% elif row.TIER == 2 %}bg-blue-400{% else %}bg-purple-400{% endif %}"></span>
+                            <span class="font-medium text-gray-100 text-sm truncate">{{ row.GOLFER }}</span>
                             {% if row.PLAYER_STATUS|lower == "cut" %}
-                            <span class="px-1.5 py-0.5 bg-red-600 text-white rounded text-[10px] font-medium">CUT</span>
-                            {% else %}
-                            <span class="text-[11px] text-gray-400">
-                                R{{ row.ROUND_ID|int }}
-                                {% if row.THRU|string == "18" %}· F{% elif row.THRU %}· Thru {{ row.THRU }}{% endif %}
-                            </span>
+                            <span class="flex-shrink-0 px-1 py-0.5 bg-red-600/80 text-white rounded text-[9px] font-semibold leading-none">CUT</span>
                             {% endif %}
                         </div>
                     </div>
 
-                    <!-- Score + Chevron -->
-                    <div class="flex items-center gap-1.5 flex-shrink-0">
+                    {# Score + chevron #}
+                    <div class="flex items-center gap-1 flex-shrink-0">
                         {% if row.TOTAL_SCORE_INTEGER is not none %}
-                        <span class="font-bold text-lg
+                        <span class="font-bold text-sm tabular-nums
                             {% if row.TOTAL_SCORE_INTEGER|int < 0 %}text-golf-green-400
                             {% elif row.TOTAL_SCORE_INTEGER|int > 0 %}text-red-400
                             {% else %}text-gray-300{% endif %}">
                             {% if row.TOTAL_SCORE_INTEGER|int < 0 %}{{ row.TOTAL_SCORE_INTEGER|int }}{% elif row.TOTAL_SCORE_INTEGER|int > 0 %}+{{ row.TOTAL_SCORE_INTEGER|int }}{% else %}E{% endif %}
                         </span>
                         {% else %}
-                        <span class="font-bold text-lg text-gray-500">--</span>
+                        <span class="font-bold text-sm text-gray-600">--</span>
                         {% endif %}
-                        <svg class="w-4 h-4 text-gray-400 transform transition-transform duration-200 expand-arrow"
-                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        <svg class="w-3.5 h-3.5 text-gray-600 transition-transform duration-200 expand-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                         </svg>
                     </div>
                 </div>
 
-                <!-- Expandable Detail Section -->
-                <div class="card-detail hidden border-t border-gray-700/50 bg-gray-900/50 px-3 py-3">
-                    <!-- Stats Grid -->
-                    <div class="grid grid-cols-3 gap-2 text-center mb-3">
+                {# Expandable detail #}
+                <div class="card-detail hidden border-t border-gray-700/50 bg-gray-900/40 px-3 py-2.5">
+                    <div class="grid grid-cols-3 gap-2 text-center mb-2.5">
                         <div>
-                            <div class="text-[10px] text-gray-500 uppercase">Current Rd</div>
+                            <div class="text-[10px] text-gray-500 uppercase">Round</div>
                             <div class="text-sm font-medium text-gray-300">{{ row.CURRENT_ROUND_SCORE or '--' }}</div>
                         </div>
                         <div>
                             <div class="text-[10px] text-gray-500 uppercase">Thru</div>
                             <div class="text-sm font-medium text-gray-300">
-                                {% if row.THRU|string == "18" %}
-                                <span class="px-2 py-0.5 bg-golf-green-800 text-golf-green-200 rounded text-xs font-medium">F</span>
-                                {% else %}{{ row.THRU or '--' }}{% endif %}
+                                {% if row.THRU|string == "18" %}<span class="px-1.5 py-0.5 bg-golf-green-800 text-golf-green-200 rounded text-[10px] font-medium">F</span>{% else %}{{ row.THRU or '--' }}{% endif %}
                             </div>
                         </div>
                         <div>
@@ -156,262 +154,345 @@
                             <div class="text-sm font-medium text-gray-300">{{ row.TEE_TIME or '--' }}</div>
                         </div>
                     </div>
-
-                    <!-- Selected By -->
-                    <div>
-                        <div class="text-[10px] text-gray-500 uppercase mb-1.5">Selected By</div>
-                        {% if row.SELECTIONS and row.SELECTIONS|string != "0" %}
-                        <div class="flex flex-wrap gap-1">
-                            {% for team_name in row.SELECTIONS.split(',') %}
-                            {% if team_name.strip() %}
-                            <span class="team-chip inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-golf-green-600 text-white cursor-pointer hover:bg-golf-green-500 transition-colors whitespace-nowrap"
-                                  data-team="{{ team_name.strip() }}"
-                                  onclick="event.stopPropagation(); toggleTeamHighlight('{{ team_name.strip() }}')">
-                                {{ team_name.strip() }}
-                            </span>
-                            {% endif %}
-                            {% endfor %}
-                        </div>
-                        {% else %}
-                        <span class="text-gray-500 text-xs">Not selected</span>
+                    {% if row.SELECTIONS and row.SELECTIONS|string != "0" %}
+                    <div class="flex flex-wrap gap-1">
+                        {% for team_name in row.SELECTIONS.split(',') %}
+                        {% if team_name.strip() %}
+                        <span class="team-chip inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-golf-green-600 text-white cursor-pointer"
+                              data-team="{{ team_name.strip() }}"
+                              onclick="event.stopPropagation(); toggleTeamHighlight('{{ team_name.strip() }}')">
+                            {{ team_name.strip() }}
+                        </span>
                         {% endif %}
+                        {% endfor %}
                     </div>
+                    {% endif %}
                 </div>
             </div>
             {% endfor %}
         </div>
 
-        <!-- Table Container (Desktop) -->
-        <div class="hidden sm:block bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-2xl">
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <thead class="bg-gray-700 text-gray-200">
-                        <tr>
-                            <th class="bg-gray-700 px-2 py-4 text-left font-semibold border-r border-gray-600 w-[60px]">
-                                Pos
-                            </th>
-                            <th class="sticky left-0 bg-gray-700 px-3 py-4 text-left font-semibold min-w-[200px] border-r border-gray-600 z-30">
-                                Player
-                            </th>
-                            <th class="px-4 py-4 text-center font-semibold">Total Score</th>
-                            <th class="px-4 py-4 text-center font-semibold">Current Round</th>
-                            <th class="px-4 py-4 text-center font-semibold">Thru</th>
-                            <th class="px-4 py-4 text-center font-semibold">Round</th>
-                            <th class="px-4 py-4 text-center font-semibold">Status</th>
-                            <th class="px-4 py-4 text-center font-semibold">Tee Time</th>
-                            <th class="px-4 py-4 text-left font-semibold bg-golf-green-800/20 min-w-max">Selected By</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-700">
-                        {% for row in results %}
-                        <tr class="hover:bg-gray-700/50 transition-colors">
-                            <!-- Position -->
-                            <td class="bg-gray-800 hover:bg-gray-700/50 px-2 py-4 border-r border-gray-700 w-[60px]">
-                                {% if row.POSITION == "T1" or row.POSITION == "1" %}
-                                <div class="w-7 h-7 bg-gradient-to-br from-yellow-400 to-yellow-600 text-yellow-900 rounded-full flex items-center justify-center text-xs font-bold">
-                                    {{ row.POSITION }}
-                                </div>
-                                {% elif row.POSITION in ["T2", "2", "T3", "3"] %}
-                                <div class="w-7 h-7 bg-gradient-to-br from-gray-300 to-gray-500 text-gray-900 rounded-full flex items-center justify-center text-xs font-bold">
-                                    {{ row.POSITION }}
-                                </div>
-                                {% else %}
-                                <div class="text-gray-300 font-medium text-sm">{{ row.POSITION }}</div>
-                                {% endif %}
-                            </td>
-
-                            <!-- Player Name -->
-                            <td class="sticky left-0 bg-gray-800 hover:bg-gray-700/50 px-3 py-4 border-r border-gray-700 min-w-[200px] z-20">
-                                <div class="font-medium text-gray-100">{{ row.GOLFER }}</div>
-                            </td>
-
-                            <!-- Total Score -->
-                            <td class="px-4 py-4 text-center">
-                                {% if row.TOTAL_SCORE_INTEGER is not none %}
-                                <span class="font-bold text-lg
-                                    {% if row.TOTAL_SCORE_INTEGER|int < 0 %}text-golf-green-400
-                                    {% elif row.TOTAL_SCORE_INTEGER|int > 0 %}text-red-400
-                                    {% else %}text-gray-300{% endif %}">
-                                    {% if row.TOTAL_SCORE_INTEGER|int < 0 %}{{ row.TOTAL_SCORE_INTEGER|int }}{% elif row.TOTAL_SCORE_INTEGER|int > 0 %}+{{ row.TOTAL_SCORE_INTEGER|int }}{% else %}E{% endif %}
+        {# --- Desktop Table --- #}
+        <div class="hidden sm:block bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-xl">
+            <table class="w-full text-sm" id="playersTable">
+                <thead class="bg-gray-700/80 text-gray-300 text-xs uppercase tracking-wide">
+                    <tr>
+                        <th class="w-14 px-3 py-3 text-center font-semibold">Pos</th>
+                        <th class="px-3 py-3 text-left font-semibold">Player</th>
+                        <th class="w-20 px-3 py-3 text-center font-semibold">Score</th>
+                        <th class="w-16 px-3 py-3 text-center font-semibold">Thru</th>
+                        <th class="px-3 py-3 text-left font-semibold">Teams</th>
+                    </tr>
+                </thead>
+                <tbody id="desktopBody">
+                    {% set ns = namespace(prev_tier=0) %}
+                    {% for row in results %}
+                    {# Tier divider row #}
+                    {% if row.TIER != ns.prev_tier %}
+                    <tr class="tier-divider" data-tier-header="{{ row.TIER }}">
+                        <td colspan="5" class="px-3 pt-{% if loop.first %}1{% else %}3{% endif %} pb-1">
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] font-bold uppercase tracking-widest
+                                    {% if row.TIER == 1 %}text-golf-gold-400{% elif row.TIER == 2 %}text-blue-400{% else %}text-purple-400{% endif %}">
+                                    Tier {{ row.TIER }}
                                 </span>
-                                {% else %}
-                                <span class="font-bold text-lg text-gray-500">--</span>
-                                {% endif %}
-                            </td>
+                                <div class="flex-1 border-t {% if row.TIER == 1 %}border-golf-gold-400/20{% elif row.TIER == 2 %}border-blue-400/20{% else %}border-purple-400/20{% endif %}"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% set ns.prev_tier = row.TIER %}
+                    {% endif %}
 
-                            <!-- Current Round Score -->
-                            <td class="px-4 py-4 text-center">
-                                <span class="font-medium text-gray-300">
-                                    {{ row.CURRENT_ROUND_SCORE or '--' }}
-                                </span>
-                            </td>
+                    <tr class="player-row hover:bg-gray-700/40 border-b border-gray-700/30"
+                        data-name="{{ row.GOLFER|lower }}"
+                        data-status="{{ row.PLAYER_STATUS|lower }}"
+                        data-tier="{{ row.TIER }}"
+                        data-sort-pos="{{ loop.index }}"
+                        data-score="{{ row.TOTAL_SCORE_INTEGER if row.TOTAL_SCORE_INTEGER is not none else 999 }}"
+                        data-team-names="{% if row.SELECTIONS and row.SELECTIONS|string != '0' %}{% for t in row.SELECTIONS.split(',') %}{{ t.strip() }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}">
+                        {# Position #}
+                        <td class="px-3 py-2.5 text-center">
+                            {% if row.POSITION in ["1", "T1"] %}
+                            <span class="inline-flex items-center justify-center w-7 h-7 bg-gradient-to-br from-yellow-400 to-yellow-600 text-yellow-900 rounded-full text-xs font-bold">{{ row.POSITION }}</span>
+                            {% elif row.POSITION in ["2", "T2", "3", "T3"] %}
+                            <span class="inline-flex items-center justify-center w-7 h-7 bg-gradient-to-br from-gray-300 to-gray-500 text-gray-900 rounded-full text-xs font-bold">{{ row.POSITION }}</span>
+                            {% else %}
+                            <span class="text-gray-400 text-sm font-medium">{{ row.POSITION }}</span>
+                            {% endif %}
+                        </td>
 
-                            <!-- Thru -->
-                            <td class="px-4 py-4 text-center text-gray-300">
-                                {% if row.THRU|string == "18" %}
-                                <span class="px-2 py-1 bg-golf-green-800 text-golf-green-200 rounded text-xs font-medium">F</span>
-                                {% else %}
-                                {{ row.THRU }}
-                                {% endif %}
-                            </td>
-
-                            <!-- Round -->
-                            <td class="px-4 py-4 text-center">
-                                <span class="px-2 py-1 bg-gray-700 text-gray-200 rounded text-xs font-medium">R{{ row.ROUND_ID|int }}</span>
-                            </td>
-
-                            <!-- Player Status -->
-                            <td class="px-4 py-4 text-center">
+                        {# Player name + tier dot + CUT badge #}
+                        <td class="px-3 py-2.5">
+                            <div class="flex items-center gap-2">
+                                <span class="tier-dot {% if row.TIER == 1 %}bg-golf-gold-400{% elif row.TIER == 2 %}bg-blue-400{% else %}bg-purple-400{% endif %}"></span>
+                                <span class="font-medium text-gray-100">{{ row.GOLFER }}</span>
                                 {% if row.PLAYER_STATUS|lower == "cut" %}
-                                <span class="px-2 py-1 bg-red-600 text-white rounded text-xs font-medium">CUT</span>
-                                {% else %}
-                                <span class="px-2 py-1 bg-golf-green-600 text-white rounded text-xs font-medium">{{ row.PLAYER_STATUS|upper }}</span>
+                                <span class="px-1.5 py-0.5 bg-red-600/80 text-white rounded text-[10px] font-semibold leading-none">CUT</span>
                                 {% endif %}
-                            </td>
+                            </div>
+                        </td>
 
-                            <!-- Tee Time -->
-                            <td class="px-4 py-4 text-center text-gray-300">
-                                {{ row.TEE_TIME or '--' }}
-                            </td>
+                        {# Score #}
+                        <td class="px-3 py-2.5 text-center">
+                            {% if row.TOTAL_SCORE_INTEGER is not none %}
+                            <span class="font-bold text-base tabular-nums
+                                {% if row.TOTAL_SCORE_INTEGER|int < 0 %}text-golf-green-400
+                                {% elif row.TOTAL_SCORE_INTEGER|int > 0 %}text-red-400
+                                {% else %}text-gray-300{% endif %}">
+                                {% if row.TOTAL_SCORE_INTEGER|int < 0 %}{{ row.TOTAL_SCORE_INTEGER|int }}{% elif row.TOTAL_SCORE_INTEGER|int > 0 %}+{{ row.TOTAL_SCORE_INTEGER|int }}{% else %}E{% endif %}
+                            </span>
+                            {% else %}
+                            <span class="text-gray-600 font-bold">--</span>
+                            {% endif %}
+                        </td>
 
-                            <!-- Selections -->
-                            <td class="px-4 py-4 bg-golf-green-900/10 min-w-max">
-                                {% if row.SELECTIONS and row.SELECTIONS|string != "0" %}
-                                <div class="flex gap-1">
-                                    {% for team_name in row.SELECTIONS.split(',') %}
-                                    {% if team_name.strip() %}
-                                    <span class="team-chip inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-golf-green-600 text-white cursor-pointer hover:bg-golf-green-500 transition-colors whitespace-nowrap"
-                                          data-team="{{ team_name.strip() }}"
-                                          onclick="toggleTeamHighlight('{{ team_name.strip() }}')">
-                                        {{ team_name.strip() }}
-                                    </span>
-                                    {% endif %}
-                                    {% endfor %}
-                                </div>
-                                {% else %}
-                                <span class="text-gray-500 text-xs">Not selected</span>
+                        {# Thru #}
+                        <td class="px-3 py-2.5 text-center text-gray-400 text-xs">
+                            {% if row.PLAYER_STATUS|lower == "cut" %}
+                            <span class="text-gray-600">--</span>
+                            {% elif row.THRU|string == "18" %}
+                            <span class="px-1.5 py-0.5 bg-golf-green-800 text-golf-green-200 rounded text-[10px] font-medium">F</span>
+                            {% else %}
+                            {{ row.THRU }}
+                            {% endif %}
+                        </td>
+
+                        {# Teams #}
+                        <td class="px-3 py-2.5">
+                            {% if row.SELECTIONS and row.SELECTIONS|string != "0" %}
+                            <div class="flex flex-wrap gap-1">
+                                {% for team_name in row.SELECTIONS.split(',') %}
+                                {% if team_name.strip() %}
+                                <span class="team-chip inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-golf-green-600 text-white cursor-pointer hover:bg-golf-green-500 transition-colors whitespace-nowrap"
+                                      data-team="{{ team_name.strip() }}"
+                                      onclick="toggleTeamHighlight('{{ team_name.strip() }}')">
+                                    {{ team_name.strip() }}
+                                </span>
                                 {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Legend -->
-        <div class="mt-8 bg-gray-800 rounded-xl border border-gray-700 p-6">
-            <h3 class="font-display text-lg text-gray-200 mb-4">Player Standings Legend</h3>
-            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                <div>
-                    <div class="font-medium text-golf-gold-400 mb-2">Scoring</div>
-                    <ul class="space-y-1 text-gray-300">
-                        <li><span class="text-golf-green-400">Green:</span> Under par</li>
-                        <li><span class="text-red-400">Red:</span> Over par</li>
-                        <li><strong>F:</strong> Finished round</li>
-                        <li><strong>E:</strong> Even par</li>
-                    </ul>
-                </div>
-                <div>
-                    <div class="font-medium text-golf-gold-400 mb-2">Status & Cut Line</div>
-                    <ul class="space-y-1 text-gray-300">
-                        <li><span class="text-red-400">CUT:</span> Missed the cut</li>
-                        <li><strong>Cut Line:</strong>
-                            {% if cut_line is not none %}
-                                {% if cut_line > 0 %}+{{ cut_line|int }}{% elif cut_line < 0 %}{{ cut_line|int }}{% else %}E{% endif %}
-                            {% else %}N/A{% endif %}
-                        </li>
-                        <li><strong>Picks:</strong> Teams that selected this player</li>
-                    </ul>
-                </div>
-                <div>
-                    <div class="font-medium text-golf-gold-400 mb-2">Tournament Info</div>
-                    <ul class="space-y-1 text-gray-300">
-                        <li><strong>Total Score:</strong> Tournament total to par</li>
-                        <li><strong>Current Round:</strong> Today's round score</li>
-                        <li><strong>Thru:</strong> Holes completed in current round</li>
-                    </ul>
-                </div>
-            </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <span class="text-gray-600 text-xs">--</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
 {% endblock %}
 
 {% block scripts %}
     <script>
         let selectedTeams = new Set();
+        let currentView = 'tournament';
 
+        // Store tier header/divider elements globally before any DOM manipulation
+        let storedMobileHeaders = [];
+        let storedDesktopDividers = [];
+
+        (function init() {
+            storedMobileHeaders = Array.from(document.querySelectorAll('.tier-header'));
+            storedDesktopDividers = Array.from(document.querySelectorAll('.tier-divider'));
+            setView('tournament');
+        })();
+
+        // --- View switching ---
+        function setView(view) {
+            currentView = view;
+            const btnT = document.getElementById('btn-tournament');
+            const btnTier = document.getElementById('btn-tier');
+
+            if (view === 'tournament') {
+                btnT.className = 'px-3 py-1 text-[11px] font-medium rounded-md transition-colors bg-golf-green-600 text-white';
+                btnTier.className = 'px-3 py-1 text-[11px] font-medium rounded-md transition-colors text-gray-400 hover:text-gray-200';
+            } else {
+                btnTier.className = 'px-3 py-1 text-[11px] font-medium rounded-md transition-colors bg-golf-green-600 text-white';
+                btnT.className = 'px-3 py-1 text-[11px] font-medium rounded-md transition-colors text-gray-400 hover:text-gray-200';
+            }
+
+            // Collapse any expanded cards
+            document.querySelectorAll('.card-detail').forEach(d => d.style.display = 'none');
+            document.querySelectorAll('.expand-arrow').forEach(a => a.style.transform = 'rotate(0deg)');
+
+            reorderElements();
+            filterPlayers();
+        }
+
+        function reorderElements() {
+            // Reorder mobile cards
+            const mobileContainer = document.getElementById('mobileContainer');
+            if (mobileContainer) {
+                const cards = Array.from(mobileContainer.querySelectorAll('.player-card'));
+
+                if (currentView === 'tournament') {
+                    cards.sort((a, b) => parseInt(a.dataset.sortPos) - parseInt(b.dataset.sortPos));
+                    // Detach tier headers, append sorted cards
+                    storedMobileHeaders.forEach(h => { if (h.parentNode) h.parentNode.removeChild(h); });
+                    cards.forEach(c => mobileContainer.appendChild(c));
+                } else {
+                    cards.sort((a, b) => {
+                        const tierDiff = parseInt(a.dataset.tier) - parseInt(b.dataset.tier);
+                        if (tierDiff !== 0) return tierDiff;
+                        return parseInt(a.dataset.sortPos) - parseInt(b.dataset.sortPos);
+                    });
+                    // Rebuild with tier headers from stored references
+                    while (mobileContainer.firstChild) mobileContainer.removeChild(mobileContainer.firstChild);
+                    let prevTier = 0;
+                    cards.forEach(card => {
+                        const tier = parseInt(card.dataset.tier);
+                        if (tier !== prevTier) {
+                            const header = storedMobileHeaders.find(h => h.dataset.tier === String(tier));
+                            if (header) mobileContainer.appendChild(header);
+                            prevTier = tier;
+                        }
+                        mobileContainer.appendChild(card);
+                    });
+                }
+            }
+
+            // Reorder desktop rows
+            const tbody = document.getElementById('desktopBody');
+            if (tbody) {
+                const rows = Array.from(tbody.querySelectorAll('.player-row'));
+
+                if (currentView === 'tournament') {
+                    rows.sort((a, b) => parseInt(a.dataset.sortPos) - parseInt(b.dataset.sortPos));
+                    storedDesktopDividers.forEach(d => { if (d.parentNode) d.parentNode.removeChild(d); });
+                    rows.forEach(r => tbody.appendChild(r));
+                } else {
+                    rows.sort((a, b) => {
+                        const tierDiff = parseInt(a.dataset.tier) - parseInt(b.dataset.tier);
+                        if (tierDiff !== 0) return tierDiff;
+                        return parseInt(a.dataset.sortPos) - parseInt(b.dataset.sortPos);
+                    });
+                    while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+                    let prevTier = 0;
+                    rows.forEach(row => {
+                        const tier = parseInt(row.dataset.tier);
+                        if (tier !== prevTier) {
+                            const divider = storedDesktopDividers.find(d => d.dataset.tierHeader === String(tier));
+                            if (divider) tbody.appendChild(divider);
+                            prevTier = tier;
+                        }
+                        tbody.appendChild(row);
+                    });
+                }
+            }
+        }
+
+        // --- Filtering ---
+        function filterPlayers() {
+            const query = document.getElementById('playerSearch').value.toLowerCase().trim();
+            const teamFilter = document.getElementById('teamFilter').value;
+            const hideCut = document.getElementById('hideCut') && document.getElementById('hideCut').checked;
+            let visibleCount = 0;
+
+            const tiersWithVisible = new Set();
+
+            // Filter desktop rows
+            document.querySelectorAll('.player-row').forEach(row => {
+                const name = row.dataset.name || '';
+                const status = row.dataset.status || '';
+                const teams = (row.dataset.teamNames || '').split(',').map(t => t.trim()).filter(Boolean);
+
+                const matchesSearch = !query || name.includes(query);
+                const matchesTeam = !teamFilter || teams.includes(teamFilter);
+                const matchesCut = !hideCut || status !== 'cut';
+                const visible = matchesSearch && matchesTeam && matchesCut;
+
+                row.style.display = visible ? '' : 'none';
+                if (visible) {
+                    visibleCount++;
+                    tiersWithVisible.add(row.dataset.tier);
+                }
+            });
+
+            // Show/hide tier dividers
+            storedDesktopDividers.forEach(divider => {
+                const tier = divider.dataset.tierHeader;
+                divider.style.display = (currentView === 'tier' && tiersWithVisible.has(tier)) ? '' : 'none';
+            });
+
+            // Filter mobile cards
+            document.querySelectorAll('.player-card').forEach(card => {
+                const name = card.dataset.name || '';
+                const status = card.dataset.status || '';
+                const teams = (card.dataset.teamNames || '').split(',').map(t => t.trim()).filter(Boolean);
+
+                const matchesSearch = !query || name.includes(query);
+                const matchesTeam = !teamFilter || teams.includes(teamFilter);
+                const matchesCut = !hideCut || status !== 'cut';
+
+                card.style.display = (matchesSearch && matchesTeam && matchesCut) ? '' : 'none';
+            });
+
+            // Show/hide mobile tier headers
+            storedMobileHeaders.forEach(header => {
+                const tier = header.dataset.tier;
+                header.style.display = (currentView === 'tier' && tiersWithVisible.has(tier)) ? '' : 'none';
+            });
+
+            // Update count
+            const countEl = document.getElementById('filterCount');
+            if (countEl) {
+                const total = document.querySelectorAll('.player-row').length;
+                countEl.textContent = visibleCount === total
+                    ? total + ' players'
+                    : visibleCount + ' of ' + total + ' players';
+            }
+        }
+
+        // --- Card expand/collapse ---
         function togglePlayerDetail(card) {
             const detail = card.querySelector('.card-detail');
             const arrow = card.querySelector('.expand-arrow');
             const isExpanded = detail.style.display === 'block';
-            if (isExpanded) {
-                detail.style.display = 'none';
-                arrow.style.transform = 'rotate(0deg)';
-            } else {
-                detail.style.display = 'block';
-                arrow.style.transform = 'rotate(180deg)';
-            }
+            detail.style.display = isExpanded ? 'none' : 'block';
+            arrow.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(180deg)';
         }
 
+        // --- Team highlighting ---
         function toggleTeamHighlight(teamName) {
             if (selectedTeams.has(teamName)) {
-                // If clicking the currently selected team, deselect it (clear all)
                 clearAllSelections();
             } else {
-                // Clear all previous selections first
                 clearAllSelections();
-
-                // Then select the new team
                 selectedTeams.add(teamName);
                 document.querySelectorAll(`[data-team="${teamName}"]`).forEach(chip => {
                     chip.classList.remove('bg-golf-green-600');
                     chip.classList.add('bg-golf-gold-500', 'ring-2', 'ring-golf-gold-400');
                 });
-
-                // Update row highlighting
                 updateRowHighlighting();
             }
         }
 
         function updateRowHighlighting() {
-            // Desktop table rows
-            const rows = document.querySelectorAll('tbody tr');
-            rows.forEach(row => {
-                const teamChips = row.querySelectorAll('.team-chip');
-                let hasSelectedTeam = false;
-                teamChips.forEach(chip => {
-                    if (selectedTeams.has(chip.getAttribute('data-team'))) hasSelectedTeam = true;
-                });
-                if (hasSelectedTeam && selectedTeams.size > 0) {
-                    row.classList.add('bg-golf-gold-900/20', 'border-l-4', 'border-golf-gold-500');
-                } else if (selectedTeams.size > 0) {
-                    row.classList.add('opacity-60');
-                    row.classList.remove('bg-golf-gold-900/20', 'border-l-4', 'border-golf-gold-500');
+            document.querySelectorAll('.player-row').forEach(row => {
+                const teams = (row.dataset.teamNames || '').split(',').map(t => t.trim()).filter(Boolean);
+                const hasSelected = teams.some(t => selectedTeams.has(t));
+                if (selectedTeams.size > 0) {
+                    row.classList.toggle('opacity-40', !hasSelected);
+                    row.classList.toggle('bg-golf-gold-900/20', hasSelected);
                 } else {
-                    row.classList.remove('bg-golf-gold-900/20', 'border-l-4', 'border-golf-gold-500', 'opacity-60');
+                    row.classList.remove('opacity-40', 'bg-golf-gold-900/20');
                 }
             });
 
-            // Mobile cards
-            const cards = document.querySelectorAll('.player-card');
-            cards.forEach(card => {
-                const teamNames = (card.getAttribute('data-team-names') || '').split(',').map(t => t.trim()).filter(Boolean);
-                const hasSelected = teamNames.some(t => selectedTeams.has(t));
-                if (hasSelected && selectedTeams.size > 0) {
-                    card.classList.add('border-golf-gold-500');
-                    card.classList.remove('border-gray-700', 'opacity-60');
-                } else if (selectedTeams.size > 0) {
-                    card.classList.add('opacity-60');
-                    card.classList.remove('border-golf-gold-500');
-                    if (!card.classList.contains('border-gray-700')) card.classList.add('border-gray-700');
+            document.querySelectorAll('.player-card').forEach(card => {
+                const teams = (card.dataset.teamNames || '').split(',').map(t => t.trim()).filter(Boolean);
+                const hasSelected = teams.some(t => selectedTeams.has(t));
+                if (selectedTeams.size > 0) {
+                    card.classList.toggle('opacity-40', !hasSelected);
+                    card.classList.toggle('border-golf-gold-500', hasSelected);
+                    card.classList.toggle('border-gray-700/60', !hasSelected);
                 } else {
-                    card.classList.remove('border-golf-gold-500', 'opacity-60');
-                    if (!card.classList.contains('border-gray-700')) card.classList.add('border-gray-700');
+                    card.classList.remove('opacity-40', 'border-golf-gold-500');
+                    card.classList.add('border-gray-700/60');
                 }
             });
         }
 
-        // Clear all selections
         function clearAllSelections() {
             selectedTeams.clear();
             document.querySelectorAll('.team-chip').forEach(chip => {
@@ -420,56 +501,5 @@
             });
             updateRowHighlighting();
         }
-
-
-
-        // Add clear button functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            // Add a clear selections button if it doesn't exist
-            const header = document.querySelector('header .flex.items-center.space-x-1');
-            if (header && !document.getElementById('clearSelectionsBtn')) {
-                const clearBtn = document.createElement('button');
-                clearBtn.id = 'clearSelectionsBtn';
-                clearBtn.className = 'px-3 py-1 text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-700 rounded-md transition-colors';
-                clearBtn.textContent = 'Clear';
-                clearBtn.onclick = clearAllSelections;
-                clearBtn.style.display = 'none';
-                header.appendChild(clearBtn);
-            }
-
-            // Show/hide clear button based on selections
-            const observer = new MutationObserver(function() {
-                const clearBtn = document.getElementById('clearSelectionsBtn');
-                if (clearBtn) {
-                    clearBtn.style.display = selectedTeams.size > 0 ? 'block' : 'none';
-                }
-            });
-
-            // Update clear button visibility when selections change
-            const originalAdd = selectedTeams.add;
-            const originalDelete = selectedTeams.delete;
-            const originalClear = selectedTeams.clear;
-
-            selectedTeams.add = function(...args) {
-                const result = originalAdd.apply(this, args);
-                const clearBtn = document.getElementById('clearSelectionsBtn');
-                if (clearBtn) clearBtn.style.display = 'block';
-                return result;
-            };
-
-            selectedTeams.delete = function(...args) {
-                const result = originalDelete.apply(this, args);
-                const clearBtn = document.getElementById('clearSelectionsBtn');
-                if (clearBtn) clearBtn.style.display = this.size > 0 ? 'block' : 'none';
-                return result;
-            };
-
-            selectedTeams.clear = function(...args) {
-                const result = originalClear.apply(this, args);
-                const clearBtn = document.getElementById('clearSelectionsBtn');
-                if (clearBtn) clearBtn.style.display = 'none';
-                return result;
-            };
-        });
     </script>
 {% endblock %}
