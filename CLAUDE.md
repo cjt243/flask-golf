@@ -88,6 +88,14 @@ Once `picks_locked=True`, the full leaderboard renders normally.
 
 **Helpers**: `_build_tier_lists(golfers)` extracts tier-sorting logic (shared by both new-entry and editing paths). `_render_pick_form()` accepts `editing=False` and `existing_entry=None` defaults.
 
+### Player Standings Responsive Layout
+
+`player_standings.html` uses a dual layout for the `/players` page:
+- **Mobile (<640px)**: Card-based layout (`sm:hidden`). Each golfer is a compact card with position badge, name, status (round/thru or CUT), and color-coded score. Tap to expand details (current round, thru, tee time, "Selected By" team chips). `togglePlayerDetail()` handles expand/collapse with chevron rotation. `event.stopPropagation()` on team chips prevents toggling the card.
+- **Desktop (>=640px)**: Original 9-column table (`hidden sm:block`), unchanged.
+
+Team chip highlighting (`toggleTeamHighlight()` / `updateRowHighlighting()`) works across both layouts — mobile cards use a `data-team-names` attribute for matching.
+
 ### Caching
 
 In-memory dict, 5-minute TTL, per-worker (not shared). Use `clear_tournament_cache(tournament_id)` to clear specific caches, or `clear_tournament_cache()` to clear all. Called on pick submission, tournament activation, golfer refresh, and tier changes.
