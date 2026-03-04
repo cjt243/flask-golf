@@ -16,9 +16,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 os.environ['FLASK_SECRET_KEY'] = 'test-secret-key-for-pytest'
 os.environ['FLASK_DEBUG'] = '1'
 os.environ['ADMIN_EMAILS'] = 'admin@test.com'
-# Unset keys that would trigger real API/email calls
-os.environ.pop('RESEND_API_KEY', None)
-os.environ.pop('GOLF_API_KEY', None)
 
 # Use a temp file for the DB — libsql :memory: doesn't work across Flask request contexts
 _db_fd, _db_path = tempfile.mkstemp(suffix='.db')
@@ -26,7 +23,12 @@ os.close(_db_fd)
 os.environ['TURSO_DATABASE_URL'] = f'file:{_db_path}'
 
 # Now safe to import app (triggers module-level migration code)
+# NOTE: import runs load_dotenv() which re-reads .env, so we must
+# unset dangerous keys AFTER import to prevent real API/email calls.
 import app as app_module  # noqa: E402
+
+os.environ.pop('RESEND_API_KEY', None)
+os.environ.pop('GOLF_API_KEY', None)
 
 
 @pytest.fixture(scope='session')
