@@ -154,3 +154,14 @@ CREATE TABLE IF NOT EXISTS failed_logins (
 );
 CREATE INDEX IF NOT EXISTS idx_failed_logins_email ON failed_logins(email);
 CREATE INDEX IF NOT EXISTS idx_failed_logins_ip ON failed_logins(ip_address);
+
+-- User feedback
+CREATE TABLE IF NOT EXISTS feedback (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    page_url TEXT NOT NULL,
+    message TEXT NOT NULL,
+    resolved INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at);

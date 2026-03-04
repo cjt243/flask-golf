@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% set show_nav = true %}
+{% set active_tab = 'admin' %}
+
+{% block title %}Feedback - Admin{% endblock %}
+
+{% block main_class %}max-w-6xl mx-auto px-4 py-8{% endblock %}
+
+{% block content %}
+    <div class="mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="font-display text-2xl text-white">User Feedback</h1>
+                <p class="text-sm text-gray-400 mt-1">{{ feedback_list|length }} item{{ 's' if feedback_list|length != 1 }}</p>
+            </div>
+            <a href="/admin" class="px-3 py-1.5 text-xs bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors">
+                Back to Admin
+            </a>
+        </div>
+    </div>
+
+    <!-- Status Filters -->
+    <div class="flex items-center space-x-2 mb-6">
+        {% for val, label in [('open', 'Open'), ('resolved', 'Resolved'), ('all', 'All')] %}
+        <a href="/admin/feedback?status={{ val }}"
+           class="px-3 py-1.5 text-xs font-medium rounded transition-colors {{ 'bg-golf-green-600 text-white' if status_filter == val else 'bg-gray-700 text-gray-300 hover:bg-gray-600' }}">
+            {{ label }}
+        </a>
+        {% endfor %}
+    </div>
+
+    {% if feedback_list %}
+    <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-700/50">
+                <tr>
+                    <th class="px-4 py-3 text-left font-medium text-gray-300">Date</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-300">User</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-300">Page</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-300">Message</th>
+                    <th class="px-4 py-3 text-right font-medium text-gray-300">Status</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-700">
+                {% for fb in feedback_list %}
+                <tr class="hover:bg-gray-700/30">
+                    <td class="px-4 py-3 text-gray-400 whitespace-nowrap">{{ fb.created_at[:16] }}</td>
+                    <td class="px-4 py-3 text-white whitespace-nowrap">{{ fb.user_name }}</td>
+                    <td class="px-4 py-3 text-gray-400 font-mono text-xs">{{ fb.page_url }}</td>
+                    <td class="px-4 py-3 text-gray-300" title="{{ fb.message }}">
+                        {{ fb.message[:120] }}{% if fb.message|length > 120 %}...{% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        <form action="/admin/feedback/toggle?status={{ status_filter }}" method="POST" class="inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="feedback_id" value="{{ fb.id }}">
+                            <button type="submit" class="px-3 py-1 text-xs rounded transition-colors {{ 'bg-green-600/20 text-green-400 hover:bg-green-600 hover:text-white' if fb.resolved else 'bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600 hover:text-white' }}">
+                                {{ 'Resolved' if fb.resolved else 'Open' }}
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="bg-gray-800 rounded-lg p-6 text-center border border-gray-700">
+        <p class="text-gray-400">No {{ status_filter }} feedback.</p>
+    </div>
+    {% endif %}
+{% endblock %}

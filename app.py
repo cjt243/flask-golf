@@ -169,10 +169,28 @@ def _run_migrations(db):
                 logger.warning(f"Migration skipped ({description}): {e}")
     db.commit()
 
+    # Create new tables — idempotent via IF NOT EXISTS
+    for sql in [
+        """CREATE TABLE IF NOT EXISTS feedback (
+            id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            page_url TEXT NOT NULL,
+            message TEXT NOT NULL,
+            resolved INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now'))
+        )""",
+    ]:
+        try:
+            db.execute(sql)
+        except Exception:
+            pass
+    db.commit()
+
     # Indexes — idempotent, but tables may not exist yet (e.g., test env before init-db)
     for sql in [
         "CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)",
         "CREATE INDEX IF NOT EXISTS idx_auth_tokens_expires ON auth_tokens(expires_at)",
+        "CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at)",
     ]:
         try:
             db.execute(sql)
@@ -2168,6 +2186,91 @@ def admin_reset_tiers():
     clear_tournament_cache(tournament_id)
 
     return redirect(url_for('admin_manage_tiers', tournament_id=tournament_id))
+
+
+# =============================================================================
+# Feedback
+# =============================================================================
+
+@app.route('/submit-feedback', methods=['POST'])
+@login_required
+@csrf_required
+def submit_feedback():
+    """Submit user feedback from the floating widget."""
+    message = (request.form.get('message') or '').strip()
+    page_url = (request.form.get('page_url') or '').strip()
+
+    if not message:
+        return {'ok': False, 'error': 'Message is required.'}, 400
+    if len(message) > 2000:
+        return {'ok': False, 'error': 'Message too long (max 2000 chars).'}, 400
+
+    db = get_db()
+    db.execute(
+        "INSERT INTO feedback (user_id, page_url, message) VALUES (?, ?, ?)",
+        [g.user['id'], page_url[:500], message]
+    )
+    db.commit()
+    return {'ok': True}
+
+
+@app.route('/admin/feedback')
+@admin_required
+def admin_feedback():
+    """View user feedback."""
+    status = request.args.get('status', 'open')
+    db = get_db()
+
+    if status == 'open':
+        where = "WHERE f.resolved = 0"
+    elif status == 'resolved':
+        where = "WHERE f.resolved = 1"
+    else:
+        where = ""
+        status = 'all'
+
+    rows = db.execute(f"""
+        SELECT f.id, f.page_url, f.message, f.resolved, f.created_at,
+               u.email, u.first_name, u.last_name
+        FROM feedback f
+        JOIN users u ON f.user_id = u.id
+        {where}
+        ORDER BY f.created_at DESC
+    """).fetchall()
+
+    feedback_list = [{
+        'id': r[0],
+        'page_url': r[1],
+        'message': r[2],
+        'resolved': bool(r[3]),
+        'created_at': r[4],
+        'email': r[5],
+        'user_name': f"{r[6] or ''} {(r[7] or '')[:1]}.".strip() if r[6] else r[5],
+    } for r in rows]
+
+    return render_template('admin_feedback.html',
+                           feedback_list=feedback_list,
+                           status_filter=status)
+
+
+@app.route('/admin/feedback/toggle', methods=['POST'])
+@admin_required
+@csrf_required
+def admin_feedback_toggle():
+    """Toggle resolved status of a feedback item."""
+    feedback_id = request.form.get('feedback_id')
+    if not feedback_id:
+        return redirect(url_for('admin_feedback'))
+
+    db = get_db()
+    db.execute(
+        "UPDATE feedback SET resolved = CASE WHEN resolved = 0 THEN 1 ELSE 0 END WHERE id = ?",
+        [feedback_id]
+    )
+    db.commit()
+
+    status = request.args.get('status', request.form.get('status', 'open'))
+    return redirect(url_for('admin_feedback', status=status))
 
 
 # =============================================================================

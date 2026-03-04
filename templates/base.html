@@ -75,6 +75,52 @@
         </div>
     </footer>
 
+    {% if show_nav is defined and show_nav %}
+    <!-- Feedback Widget -->
+    <div id="fb-widget" class="fixed bottom-4 right-4 z-50">
+        <button onclick="document.getElementById('fb-popover').classList.toggle('hidden')"
+                class="w-10 h-10 bg-golf-green-600 hover:bg-golf-green-500 text-white rounded-full shadow-lg flex items-center justify-center transition-colors"
+                title="Send feedback">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+            </svg>
+        </button>
+        <div id="fb-popover" class="hidden absolute bottom-12 right-0 w-72 bg-gray-800 border border-gray-600 rounded-lg shadow-xl p-4">
+            <p class="text-sm font-medium text-white mb-2">Send Feedback</p>
+            <textarea id="fb-msg" rows="3" maxlength="2000" placeholder="What's on your mind?"
+                      class="w-full px-3 py-2 text-sm bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-golf-green-500 resize-none"></textarea>
+            <div class="flex items-center justify-between mt-2">
+                <span id="fb-status" class="text-xs text-gray-400"></span>
+                <button onclick="submitFeedback()" id="fb-submit"
+                        class="px-3 py-1.5 text-xs bg-golf-green-600 hover:bg-golf-green-500 text-white rounded transition-colors">
+                    Send
+                </button>
+            </div>
+        </div>
+    </div>
+    <script>
+    function submitFeedback(){
+        var msg=document.getElementById('fb-msg'),btn=document.getElementById('fb-submit'),
+            st=document.getElementById('fb-status'),pop=document.getElementById('fb-popover');
+        if(!msg.value.trim())return;
+        btn.disabled=true;
+        var fd=new FormData();
+        fd.append('message',msg.value.trim());
+        fd.append('page_url',location.pathname);
+        fd.append('csrf_token','{{ csrf_token() }}');
+        fetch('/submit-feedback',{method:'POST',body:fd})
+        .then(function(r){return r.json()})
+        .then(function(d){
+            if(d.ok){st.textContent='Thanks!';msg.value='';setTimeout(function(){pop.classList.add('hidden');st.textContent='';},1500);}
+            else{st.textContent=d.error||'Error';}
+        })
+        .catch(function(){st.textContent='Error sending.';})
+        .finally(function(){btn.disabled=false;});
+    }
+    </script>
+    {% endif %}
+
     {% block scripts %}{% endblock %}
 </body>
 
