@@ -21,7 +21,7 @@ Flask Golf is a single-file Flask web app for a fantasy golf league ("80 Yard Bo
 | `static/css/styles.css` | Tailwind CSS output (28KB minified) |
 | `static/src/input.css` | Tailwind CSS source |
 | `tailwind.config.js` | Tailwind build config with custom golf colors |
-| `tests/` | 85 pytest tests (auth, picks, leaderboard, admin, utils) |
+| `tests/` | 92 pytest tests (auth, picks, leaderboard, admin, utils) |
 | `.github/workflows/` | CI (test.yml) + auto-refresh cron (auto-refresh.yml) |
 | `gunicorn_config.py` | Production server config (port 8080, 2 workers) |
 | `requirements.txt` | Pinned Python dependencies |
@@ -31,10 +31,10 @@ Flask Golf is a single-file Flask web app for a fantasy golf league ("80 Yard Bo
 
 | Route | Auth | Purpose |
 |-------|------|---------|
-| `/` | Login | Leaderboard |
+| `/` | Login | Leaderboard (hidden until picks locked; shows pre-tournament state) |
 | `/players` | Login | Player standings |
-| `/make_picks` | Login | Pick submission form |
-| `/submit_picks` | Login+CSRF | Process pick submission |
+| `/make_picks` | Login | Pick submission/editing form |
+| `/submit_picks` | Login+CSRF | Insert or update pick submission |
 | `/auth/login` | Public | Magic link login |
 | `/auth/request-link` | CSRF | Send magic link email |
 | `/auth/verify` | Public | Verify magic link token |
@@ -76,6 +76,18 @@ Admin route `POST /admin/fetch-dk-salaries` fetches player salaries from DraftKi
 
 Golfers are assigned to 3 tiers based on DK salary ranking (higher salary = better tier). `TIER_BOUNDARIES = [(5, 1), (16, 2)]` — top 5 are Tier 1, 6-16 are Tier 2, 17+ are Tier 3. `compute_tier(index, tier_override)` applies this with optional admin overrides. DK salary is the **sole ranking source** for tier slotting (OWGR was removed). Overrides are managed in the admin tiers page (`/admin/tiers/<id>`).
 
+### Pick Editing & Leaderboard Visibility
+
+**Pick editing**: Users can update their picks any time before `picks_locked=True`. The `/make_picks` route detects existing entries and renders the form in editing mode (pre-populated with current selections). The `/submit_picks` route uses UPDATE for existing entries, INSERT for new ones. The "Already Submitted" state was removed — users always see the editable form while picks are open.
+
+**Leaderboard visibility**: When `picks_locked=False`, the leaderboard hides all entries to prevent users from seeing each other's picks. Instead it shows:
+- **User has entry**: "Your Picks Are In!" card with entry name, golfer chips, and "Change Your Picks" link
+- **No entry**: "Tournament is open for picks!" with CTA to `/make_picks`
+
+Once `picks_locked=True`, the full leaderboard renders normally.
+
+**Helpers**: `_build_tier_lists(golfers)` extracts tier-sorting logic (shared by both new-entry and editing paths). `_render_pick_form()` accepts `editing=False` and `existing_entry=None` defaults.
+
 ### Caching
 
 In-memory dict, 5-minute TTL, per-worker (not shared). Use `clear_tournament_cache(tournament_id)` to clear specific caches, or `clear_tournament_cache()` to clear all. Called on pick submission, tournament activation, golfer refresh, and tier changes.
@@ -105,7 +117,7 @@ export PATH="$HOME/.local/share/fnm:$PATH" && eval "$(fnm env)"
 - Security events logged to `security_events` table
 - Templates extend `base.html` — nav, footer, Tailwind config are shared. Use `{% set show_nav = true %}` and `{% set active_tab = '...' %}` for authenticated pages
 - `templates/macros.html` provides `form_button()` (admin action forms) and `empty_state()` (no-data cards) macros — import with `{% from "macros.html" import form_button, empty_state %}`
-- Shared helpers reduce duplication: `format_last_updated()`, `clear_tournament_cache()`, `get_tournament_external_info()`, `compute_tier()` with `TIER_BOUNDARIES` constant
+- Shared helpers reduce duplication: `format_last_updated()`, `clear_tournament_cache()`, `get_tournament_external_info()`, `compute_tier()` with `TIER_BOUNDARIES` constant, `_build_tier_lists()`, `_render_pick_form()`
 - Rate limiting uses `INSERT ... ON CONFLICT DO UPDATE` upsert pattern
 - Token verification logic lives in `_verify_magic_token()`, API schedule parsing in `_parse_api_schedule()`, player name extraction in `_extract_player_name()`
 - Session cleanup is probabilistic (~1% of authenticated requests)

@@ -1464,6 +1464,29 @@ def leaderboard():
                              is_fallback=True,
                              user=g.user)
 
+    # Hide leaderboard entries until picks are locked
+    if not tournament['picks_locked']:
+        db = get_db()
+        user_entry_row = db.execute("""
+            SELECT entry_name, golfer_1, golfer_2, golfer_3, golfer_4, golfer_5
+            FROM entries WHERE user_id = ? AND tournament_id = ?
+        """, [g.user['id'], tournament['id']]).fetchone()
+        user_entry = {
+            'entry_name': user_entry_row[0],
+            'golfers': [user_entry_row[1], user_entry_row[2], user_entry_row[3],
+                        user_entry_row[4], user_entry_row[5]]
+        } if user_entry_row else None
+        return render_template('leaderboard.html',
+                             tournament_name=tournament['name'],
+                             results=[],
+                             last_updated='N/A',
+                             cut_line=None,
+                             player_scores={},
+                             picks_locked=False,
+                             user_entry=user_entry,
+                             is_fallback=False,
+                             user=g.user)
+
     cache_key = f'leaderboard_{tournament["id"]}'
     cached = get_cached(cache_key)
 
@@ -1567,11 +1590,27 @@ def player_standings():
                          user=g.user)
 
 
+def _build_tier_lists(golfers):
+    """Sort golfers by DK salary and split into three tiers."""
+    golfers.sort(key=lambda x: x['dk_salary'] or 0, reverse=True)
+    first, second, third = [], [], []
+    for i, gl in enumerate(golfers):
+        entry = {'name': gl['name']}
+        tier = compute_tier(i, gl.get('tier_override'))
+        if tier == 1:
+            first.append(entry)
+        elif tier == 2:
+            second.append(entry)
+        else:
+            third.append(entry)
+    return first, second, third
+
+
 def _render_pick_form(**overrides):
     """Render pick_form.html with defaults for all template params."""
     ctx = dict(tournament_name='No Active Tournament', first=None, second=None,
                third=None, picks_locked=True, already_submitted=False,
-               existing_entry=None, is_fallback=True, user=g.user)
+               existing_entry=None, editing=False, is_fallback=True, user=g.user)
     ctx.update(overrides)
     return render_template('pick_form.html', **ctx)
 
@@ -1591,38 +1630,31 @@ def make_picks():
     # Check if user already submitted
     db = get_db()
     existing = db.execute("""
-        SELECT entry_name FROM entries
-        WHERE user_id = ? AND tournament_id = ?
+        SELECT entry_name, golfer_1, golfer_2, golfer_3, golfer_4, golfer_5
+        FROM entries WHERE user_id = ? AND tournament_id = ?
     """, [g.user['id'], tournament['id']]).fetchone()
 
-    if existing:
-        return _render_pick_form(tournament_name=tournament['name'], picks_locked=False,
-                                 already_submitted=True, existing_entry=existing[0],
-                                 is_fallback=False)
-
-    # Get golfers for pick options
+    # Build tier lists
     golfers = get_golfers(tournament['id'])
 
     if not golfers:
         return _render_pick_form(tournament_name=tournament['name'], picks_locked=False,
                                  first=[], second=[], third=[], is_fallback=False)
 
-    # Sort by DK salary (higher is better)
-    golfers.sort(key=lambda x: x['dk_salary'] or 0, reverse=True)
+    first, second, third = _build_tier_lists(golfers)
 
-    # Split into tiers (tier_override takes precedence over index-based computation)
-    first = []
-    second = []
-    third = []
-    for i, gl in enumerate(golfers):
-        entry = {'name': gl['name']}
-        tier = compute_tier(i, gl.get('tier_override'))
-        if tier == 1:
-            first.append(entry)
-        elif tier == 2:
-            second.append(entry)
-        else:
-            third.append(entry)
+    if existing:
+        return _render_pick_form(tournament_name=tournament['name'], first=first,
+                                 second=second, third=third, picks_locked=False,
+                                 is_fallback=False, editing=True,
+                                 existing_entry={
+                                     'entry_name': existing[0],
+                                     'golfer_1': existing[1],
+                                     'golfer_2': existing[2],
+                                     'golfer_3': existing[3],
+                                     'golfer_4': existing[4],
+                                     'golfer_5': existing[5],
+                                 })
 
     return _render_pick_form(tournament_name=tournament['name'], first=first,
                              second=second, third=third, picks_locked=False,
@@ -1642,14 +1674,10 @@ def submit_picks():
     if tournament['picks_locked']:
         return render_template('error.html', message='Picks are locked for this tournament.'), 400
 
-    # Check if already submitted
     db = get_db()
     existing = db.execute("""
         SELECT id FROM entries WHERE user_id = ? AND tournament_id = ?
     """, [g.user['id'], tournament['id']]).fetchone()
-
-    if existing:
-        return render_template('error.html', message='You have already submitted picks for this tournament.'), 400
 
     # Validate input
     entry_name = validate_entry_name(request.form.get('entry_name'))
@@ -1678,14 +1706,23 @@ def submit_picks():
     if len(set(selected)) != 5:
         return render_template('error.html', message='You cannot select the same golfer twice.'), 400
 
-    # Insert entry
+    # Insert or update entry
+    is_update = existing is not None
     try:
-        db.execute("""
-            INSERT INTO entries (id, user_id, tournament_id, entry_name,
-                               golfer_1, golfer_2, golfer_3, golfer_4, golfer_5)
-            VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?)
-        """, [g.user['id'], tournament['id'], entry_name,
-              golfer_1, golfer_2, golfer_3, golfer_4, golfer_5])
+        if is_update:
+            db.execute("""
+                UPDATE entries SET entry_name = ?, golfer_1 = ?, golfer_2 = ?,
+                       golfer_3 = ?, golfer_4 = ?, golfer_5 = ?, updated_at = datetime('now')
+                WHERE user_id = ? AND tournament_id = ?
+            """, [entry_name, golfer_1, golfer_2, golfer_3, golfer_4, golfer_5,
+                  g.user['id'], tournament['id']])
+        else:
+            db.execute("""
+                INSERT INTO entries (id, user_id, tournament_id, entry_name,
+                                   golfer_1, golfer_2, golfer_3, golfer_4, golfer_5)
+                VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?)
+            """, [g.user['id'], tournament['id'], entry_name,
+                  golfer_1, golfer_2, golfer_3, golfer_4, golfer_5])
         db.commit()
 
         # Clear cache
@@ -1694,7 +1731,8 @@ def submit_picks():
         return render_template('submit_success.html',
                              tournament=tournament['name'],
                              entry_name=entry_name,
-                             golfers=selected)
+                             golfers=selected,
+                             is_update=is_update)
     except Exception as e:
         logger.error(f"Error submitting picks: {e}")
         return render_template('error.html', message='An error occurred. Please try again.'), 500

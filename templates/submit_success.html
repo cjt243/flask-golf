@@ -20,7 +20,7 @@
         </div>
     </div>
 
-    <h1 class="font-display text-2xl text-white mb-2">Picks Submitted!</h1>
+    <h1 class="font-display text-2xl text-white mb-2">{% if is_update %}Picks Updated!{% else %}Picks Submitted!{% endif %}</h1>
     <p class="text-gray-400 mb-6">Good luck in the tournament.</p>
 
     <!-- Entry Details -->
@@ -42,7 +42,7 @@
     </a>
 
     <p class="text-xs text-gray-500 mt-4">
-        Your picks are locked in. Check the leaderboard to track your progress.
+        Your picks have been saved. You can update them until the tournament starts.
     </p>
 </div>
 {% endblock %}

@@ -164,11 +164,36 @@
 
 <!-- Empty State -->
 {% if not results %}
-    {% if not picks_locked %}
+    {% if not picks_locked and user_entry %}
+    {# Pre-tournament: user has picks #}
+    <div class="card-glow bg-gray-800/80 rounded-2xl border border-golf-gold-500/30 overflow-hidden">
+        <div class="px-8 py-10 text-center">
+            <div class="w-16 h-16 mx-auto mb-5 bg-golf-gold-500/10 border border-golf-gold-500/40 rounded-full flex items-center justify-center">
+                <svg class="w-8 h-8 text-golf-gold-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <h2 class="font-display text-2xl text-white mb-2">Your Picks Are In!</h2>
+            <p class="text-golf-gold-400 font-medium text-sm mb-4">{{ user_entry.entry_name }}</p>
+            <div class="flex flex-wrap justify-center gap-2 mb-6">
+                {% for golfer in user_entry.golfers %}
+                <span class="inline-flex items-center px-3 py-1.5 bg-golf-green-600/20 text-golf-green-400 border border-golf-green-600/30 rounded-full text-sm font-medium">
+                    {{ golfer }}
+                </span>
+                {% endfor %}
+            </div>
+            <p class="text-gray-500 text-xs mb-6">The leaderboard will appear once the tournament begins.</p>
+            <a href="/make_picks" class="inline-flex items-center gap-2 px-6 py-2.5 bg-golf-green-600 hover:bg-golf-green-700 text-white font-semibold rounded-lg transition-colors">
+                Change Your Picks
+            </a>
+        </div>
+    </div>
+    {% elif not picks_locked %}
+    {# Pre-tournament: no picks yet #}
     {{ empty_state(
         'M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
-        'No picks submitted yet',
-        'The tournament is open for picks — be the first to enter!',
+        'Tournament is open for picks!',
+        'The leaderboard will appear once the tournament begins. Get your picks in now!',
         cta_url='/make_picks', cta_label='Make Your Picks') }}
     {% else %}
     {{ empty_state(
