@@ -810,17 +810,18 @@ def compute_leaderboard(tournament_id):
         pick_details = []
 
         for pick in picks:
-            golfer = golfers.get(pick, {})
-            score = golfer.get('total_score')
-            if score is None:
-                score = 999  # Missing golfer gets high score
+            golfer = golfers.get(pick)
+            if golfer is None:
+                score = 999  # Golfer not found in tournament data
+            elif golfer.get('total_score') is None:
+                score = 0  # Golfer exists but hasn't started yet (Even par)
             else:
-                score = apply_cut_modifier(score, golfer.get('status'), cut_line)
+                score = apply_cut_modifier(golfer['total_score'], golfer.get('status'), cut_line)
             total_score += score
             pick_details.append({
                 'name': pick,
                 'score': score,
-                'status': golfer.get('status', 'unknown')
+                'status': golfer.get('status', 'unknown') if golfer else 'unknown'
             })
 
         # Build abbreviated real name (e.g., "Cullin T.")
