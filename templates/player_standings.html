@@ -78,7 +78,7 @@
             {% for row in results %}
             {# Tier divider #}
             {% if row.TIER != ns.prev_tier %}
-            <div class="tier-header flex items-center gap-2 pt-{% if loop.first %}1{% else %}4{% endif %} pb-1.5" data-tier="{{ row.TIER }}">
+            <div class="tier-header flex items-center gap-2 pt-{% if loop.first %}1{% else %}5{% endif %} pb-0.5" data-tier="{{ row.TIER }}">
                 <span class="text-[10px] font-bold uppercase tracking-widest
                     {% if row.TIER == 1 %}text-golf-gold-400{% elif row.TIER == 2 %}text-blue-400{% else %}text-purple-400{% endif %}">
                     Tier {{ row.TIER }}
@@ -190,7 +190,7 @@
                     {# Tier divider row #}
                     {% if row.TIER != ns.prev_tier %}
                     <tr class="tier-divider" data-tier-header="{{ row.TIER }}">
-                        <td colspan="5" class="px-3 pt-{% if loop.first %}1{% else %}3{% endif %} pb-1">
+                        <td colspan="5" class="px-3 pt-{% if loop.first %}1{% else %}4{% endif %} pb-0">
                             <div class="flex items-center gap-2">
                                 <span class="text-[10px] font-bold uppercase tracking-widest
                                     {% if row.TIER == 1 %}text-golf-gold-400{% elif row.TIER == 2 %}text-blue-400{% else %}text-purple-400{% endif %}">
