@@ -1568,11 +1568,16 @@ def player_standings():
     # Format for template — compute tiers by DK salary ranking
     cut_line = metadata.get('cut_line') if metadata else None
 
-    # Sort by DK salary to assign tiers (same logic as _build_tier_lists)
-    salary_sorted = sorted(golfers, key=lambda x: (-(x['dk_salary'] or 0), x['name']))
+    # Assign tiers using same DB ordering as admin tiers page
+    db = get_db()
+    tier_rows = db.execute("""
+        SELECT name, tier_override FROM golfers
+        WHERE tournament_id = ?
+        ORDER BY dk_salary DESC NULLS LAST, name ASC
+    """, [tournament['id']]).fetchall()
     golfer_tiers = {}
-    for idx, gd in enumerate(salary_sorted):
-        golfer_tiers[gd['name']] = compute_tier(idx, gd.get('tier_override'))
+    for idx, row in enumerate(tier_rows):
+        golfer_tiers[row[0]] = compute_tier(idx, row[1])
 
     # Build unique team list for filter dropdown
     all_teams = []
@@ -1610,13 +1615,18 @@ def player_standings():
                          user=g.user)
 
 
-def _build_tier_lists(golfers):
-    """Sort golfers by DK salary and split into three tiers."""
-    golfers.sort(key=lambda x: (-(x['dk_salary'] or 0), x['name']))
+def _build_tier_lists(tournament_id):
+    """Query golfers in DB tier order and split into three tiers."""
+    db = get_db()
+    rows = db.execute("""
+        SELECT name, tier_override FROM golfers
+        WHERE tournament_id = ?
+        ORDER BY dk_salary DESC NULLS LAST, name ASC
+    """, [tournament_id]).fetchall()
     first, second, third = [], [], []
-    for i, gl in enumerate(golfers):
-        entry = {'name': gl['name']}
-        tier = compute_tier(i, gl.get('tier_override'))
+    for i, row in enumerate(rows):
+        entry = {'name': row[0]}
+        tier = compute_tier(i, row[1])
         if tier == 1:
             first.append(entry)
         elif tier == 2:
@@ -1661,7 +1671,7 @@ def make_picks():
         return _render_pick_form(tournament_name=tournament['name'], picks_locked=False,
                                  first=[], second=[], third=[], is_fallback=False)
 
-    first, second, third = _build_tier_lists(golfers)
+    first, second, third = _build_tier_lists(tournament['id'])
 
     if existing:
         return _render_pick_form(tournament_name=tournament['name'], first=first,
