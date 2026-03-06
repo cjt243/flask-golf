@@ -1569,7 +1569,7 @@ def player_standings():
     cut_line = metadata.get('cut_line') if metadata else None
 
     # Sort by DK salary to assign tiers (same logic as _build_tier_lists)
-    salary_sorted = sorted(golfers, key=lambda x: x['dk_salary'] or 0, reverse=True)
+    salary_sorted = sorted(golfers, key=lambda x: (-(x['dk_salary'] or 0), x['name']))
     golfer_tiers = {}
     for idx, gd in enumerate(salary_sorted):
         golfer_tiers[gd['name']] = compute_tier(idx, gd.get('tier_override'))
@@ -1612,7 +1612,7 @@ def player_standings():
 
 def _build_tier_lists(golfers):
     """Sort golfers by DK salary and split into three tiers."""
-    golfers.sort(key=lambda x: x['dk_salary'] or 0, reverse=True)
+    golfers.sort(key=lambda x: (-(x['dk_salary'] or 0), x['name']))
     first, second, third = [], [], []
     for i, gl in enumerate(golfers):
         entry = {'name': gl['name']}
@@ -2137,7 +2137,7 @@ def admin_manage_tiers(tournament_id):
     golfers = db.execute("""
         SELECT id, name, tier_override, dk_salary
         FROM golfers WHERE tournament_id = ?
-        ORDER BY dk_salary DESC NULLS LAST
+        ORDER BY dk_salary DESC NULLS LAST, name ASC
     """, [tournament_id]).fetchall()
 
     has_dk_data = any(row[3] for row in golfers)
