@@ -6,6 +6,9 @@ instance/
 config.py
 .env
 *.db
+*.db-info
+*.db-shm
+*.db-wal
 venv/
 .vscode/
 .cursorignore
