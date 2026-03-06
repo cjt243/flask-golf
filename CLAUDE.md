@@ -74,7 +74,7 @@ Admin route `POST /admin/fetch-dk-salaries` fetches player salaries from DraftKi
 
 ### Tier System
 
-Golfers are assigned to 3 tiers based on DK salary ranking (higher salary = better tier). `TIER_BOUNDARIES = [(5, 1), (16, 2)]` — top 5 are Tier 1, 6-16 are Tier 2, 17+ are Tier 3. `compute_tier(index, tier_override)` applies this with optional admin overrides. DK salary is the **sole ranking source** for tier slotting (OWGR was removed). Overrides are managed in the admin tiers page (`/admin/tiers/<id>`). **Tiebreaker**: All three tier-sorting locations (admin tiers SQL, player standings, `_build_tier_lists`) use name ascending as tiebreaker for equal salaries to ensure consistent tier assignments.
+Golfers are assigned to 3 tiers based on DK salary ranking (higher salary = better tier). `TIER_BOUNDARIES = [(5, 1), (16, 2)]` — top 5 are Tier 1, 6-16 are Tier 2, 17+ are Tier 3. `compute_tier(index, tier_override)` applies this with optional admin overrides. DK salary is the **sole ranking source** for tier slotting (OWGR was removed). Overrides are managed in the admin tiers page (`/admin/tiers/<id>`). **Single source of tier ordering**: All three tier-computing locations (admin tiers page, player standings, `_build_tier_lists`) use the same DB query (`ORDER BY dk_salary DESC NULLS LAST, name ASC`) — never Python re-sorts, which can diverge from DB ordering.
 
 ### Pick Editing & Leaderboard Visibility
 
@@ -135,7 +135,7 @@ export PATH="$HOME/.local/share/fnm:$PATH" && eval "$(fnm env)"
 - Security events logged to `security_events` table
 - Templates extend `base.html` — nav, footer, Tailwind config are shared. Use `{% set show_nav = true %}` and `{% set active_tab = '...' %}` for authenticated pages
 - `templates/macros.html` provides `form_button()` (admin action forms) and `empty_state()` (no-data cards) macros — import with `{% from "macros.html" import form_button, empty_state %}`
-- Shared helpers reduce duplication: `format_last_updated()`, `clear_tournament_cache()`, `get_tournament_external_info()`, `compute_tier()` with `TIER_BOUNDARIES` constant, `_build_tier_lists()`, `_render_pick_form()`
+- Shared helpers reduce duplication: `format_last_updated()`, `clear_tournament_cache()`, `get_tournament_external_info()`, `compute_tier()` with `TIER_BOUNDARIES` constant, `_build_tier_lists(tournament_id)`, `_render_pick_form()`
 - Rate limiting uses `INSERT ... ON CONFLICT DO UPDATE` upsert pattern
 - Token verification logic lives in `_verify_magic_token()`, API schedule parsing in `_parse_api_schedule()`, player name extraction in `_extract_player_name()`
 - Session cleanup is probabilistic (~1% of authenticated requests)
