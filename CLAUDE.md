@@ -74,7 +74,7 @@ Admin route `POST /admin/fetch-dk-salaries` fetches player salaries from DraftKi
 
 ### Tier System
 
-Golfers are assigned to 3 tiers based on DK salary ranking (higher salary = better tier). `TIER_BOUNDARIES = [(5, 1), (16, 2)]` — top 5 are Tier 1, 6-16 are Tier 2, 17+ are Tier 3. `compute_tier(index, tier_override)` applies this with optional admin overrides. DK salary is the **sole ranking source** for tier slotting (OWGR was removed). Overrides are managed in the admin tiers page (`/admin/tiers/<id>`).
+Golfers are assigned to 3 tiers based on DK salary ranking (higher salary = better tier). `TIER_BOUNDARIES = [(5, 1), (16, 2)]` — top 5 are Tier 1, 6-16 are Tier 2, 17+ are Tier 3. `compute_tier(index, tier_override)` applies this with optional admin overrides. DK salary is the **sole ranking source** for tier slotting (OWGR was removed). Overrides are managed in the admin tiers page (`/admin/tiers/<id>`). **Tiebreaker**: All three tier-sorting locations (admin tiers SQL, player standings, `_build_tier_lists`) use name ascending as tiebreaker for equal salaries to ensure consistent tier assignments.
 
 ### Pick Editing & Leaderboard Visibility
 
