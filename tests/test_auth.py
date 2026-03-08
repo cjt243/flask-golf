@@ -129,3 +129,20 @@ class TestPublicRoutes:
         resp = client.get('/favicon.ico')
         assert resp.status_code == 200
         assert resp.content_type == 'image/svg+xml'
+
+    def test_turbo_drive_loaded(self, client):
+        """Base template must include Turbo Drive library."""
+        resp = client.get('/auth/login')
+        assert b'@hotwired/turbo' in resp.data
+
+    def test_login_form_has_turbo_disabled(self, client):
+        """Login form must disable Turbo Drive to avoid broken POST handling."""
+        resp = client.get('/auth/login')
+        assert b'data-turbo="false"' in resp.data
+
+    def test_request_access_form_has_turbo_disabled(self, client, db):
+        """Request access form must disable Turbo Drive."""
+        db.execute("INSERT INTO app_settings (key, value) VALUES ('registration_open', 'true')")
+        db.commit()
+        resp = client.get('/auth/request-access')
+        assert b'data-turbo="false"' in resp.data

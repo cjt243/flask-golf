@@ -180,6 +180,12 @@ class TestMakePicksEditing:
         # Pre-populated entry name
         assert b'My Team' in resp.data
 
+    def test_pick_form_uses_turbo_load_event(self, auth_client, seed_tournament):
+        """Pick form JS must use turbo:load (not DOMContentLoaded) for Turbo Drive compat."""
+        resp = auth_client.get('/make_picks')
+        assert b'turbo:load' in resp.data
+        assert b'DOMContentLoaded' not in resp.data
+
     def test_make_picks_locked_shows_locked_state(self, app_instance, db, auth_client, seed_tournament):
         db.execute("UPDATE tournaments SET picks_locked = 1 WHERE id = ?", [seed_tournament['id']])
         db.commit()
@@ -210,6 +216,11 @@ class TestLeaderboardPreTournament:
         assert b'Your Picks Are In' in resp.data
         assert b'Hidden Team' in resp.data
         assert b'Change Your Picks' in resp.data
+
+    def test_leaderboard_uses_turbo_load_event(self, auth_client, seed_tournament):
+        """Leaderboard JS must use turbo:load for Turbo Drive compat."""
+        resp = auth_client.get('/')
+        assert b'DOMContentLoaded' not in resp.data
 
     def test_leaderboard_shows_make_picks_cta_when_no_entry(self, auth_client, seed_tournament):
         """Leaderboard should show CTA to make picks when user has no entry."""

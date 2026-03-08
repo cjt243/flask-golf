@@ -88,7 +88,7 @@
             {% set ns.prev_tier = row.TIER %}
             {% endif %}
 
-            <div class="player-card bg-gray-800 rounded-lg border border-gray-700/60 overflow-hidden"
+            <div class="player-card animate-fade-in bg-gray-800 rounded-lg border border-gray-700/60 overflow-hidden"
                  data-name="{{ row.GOLFER|lower }}"
                  data-status="{{ row.PLAYER_STATUS|lower }}"
                  data-tier="{{ row.TIER }}"
@@ -203,7 +203,7 @@
                     {% set ns.prev_tier = row.TIER %}
                     {% endif %}
 
-                    <tr class="player-row hover:bg-gray-700/40 border-b border-gray-700/30"
+                    <tr class="player-row animate-fade-in hover:bg-gray-700/40 border-b border-gray-700/30"
                         data-name="{{ row.GOLFER|lower }}"
                         data-status="{{ row.PLAYER_STATUS|lower }}"
                         data-tier="{{ row.TIER }}"
@@ -291,11 +291,11 @@
         let storedMobileHeaders = [];
         let storedDesktopDividers = [];
 
-        (function init() {
+        document.addEventListener('turbo:load', function() {
             storedMobileHeaders = Array.from(document.querySelectorAll('.tier-header'));
             storedDesktopDividers = Array.from(document.querySelectorAll('.tier-divider'));
             setView('tournament');
-        })();
+        });
 
         // --- View switching ---
         function setView(view) {
