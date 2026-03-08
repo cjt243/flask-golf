@@ -78,7 +78,7 @@
                 </div>
                 <div class="flex flex-wrap items-end gap-4">
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">Start (UTC)</label>
+                        <label class="block text-xs text-gray-400 mb-1">Start (ET)</label>
                         <select name="start_hour" class="px-2 py-1.5 text-sm bg-gray-700 border border-gray-600 rounded text-white">
                             {% for h in range(24) %}
                             <option value="{{ h }}" {% if refresh_schedule.start_hour == h %}selected{% endif %}>{{ '%02d:00'|format(h) }}</option>
@@ -86,7 +86,7 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">End (UTC)</label>
+                        <label class="block text-xs text-gray-400 mb-1">End (ET)</label>
                         <select name="end_hour" class="px-2 py-1.5 text-sm bg-gray-700 border border-gray-600 rounded text-white">
                             {% for h in range(24) %}
                             <option value="{{ h }}" {% if refresh_schedule.end_hour == h %}selected{% endif %}>{{ '%02d:00'|format(h) }}</option>
