@@ -394,12 +394,12 @@ def is_registration_open():
 def get_refresh_schedule():
     """Get the auto-refresh schedule from app_settings.
 
-    Returns dict with start_hour, end_hour (UTC, 0-23), and days (list of
+    Returns dict with start_hour, end_hour (US/Eastern, 0-23), and days (list of
     weekday ints, 0=Monday..6=Sunday).
 
-    Defaults: Thu-Sun (3,4,5,6), 12:00-00:00 UTC (8am-8pm ET).
+    Defaults: Thu-Sun (3,4,5,6), 8:00-20:00 ET (8am-8pm Eastern).
     """
-    defaults = {'start_hour': 12, 'end_hour': 0, 'days': [3, 4, 5, 6]}
+    defaults = {'start_hour': 8, 'end_hour': 20, 'days': [3, 4, 5, 6]}
     try:
         db = get_db()
         row = db.execute("SELECT value FROM app_settings WHERE key = 'refresh_schedule'").fetchone()
@@ -422,9 +422,9 @@ def save_refresh_schedule(start_hour, end_hour, days):
 
 
 def is_within_refresh_window():
-    """Check if the current UTC time falls within the configured refresh schedule."""
+    """Check if the current Eastern time falls within the configured refresh schedule."""
     schedule = get_refresh_schedule()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(pytz_timezone('US/Eastern'))
     current_hour = now.hour
     current_day = now.weekday()  # 0=Monday..6=Sunday
 
