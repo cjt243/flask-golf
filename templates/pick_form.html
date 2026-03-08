@@ -267,7 +267,7 @@
 
 {# ── State: Picks Locked ──────────────────────────────────────────────────── #}
 {% if picks_locked %}
-<div class="card-glow bg-gray-800/80 rounded-2xl border border-red-900/50 overflow-hidden">
+<div class="card-glow animate-fade-in bg-gray-800/80 rounded-2xl border border-red-900/50 overflow-hidden">
     <div class="px-8 py-14 text-center">
         <div class="w-16 h-16 mx-auto mb-5 bg-red-950/60 border border-red-800/60 rounded-full flex items-center justify-center">
             <svg class="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -284,7 +284,7 @@
 
 {# ── State: No Golfer Data ─────────────────────────────────────────────────── #}
 {% elif not first %}
-<div class="card-glow bg-gray-800/80 rounded-2xl border border-gray-700/50 overflow-hidden">
+<div class="card-glow animate-fade-in bg-gray-800/80 rounded-2xl border border-gray-700/50 overflow-hidden">
     <div class="px-8 py-14 text-center">
         <div class="w-16 h-16 mx-auto mb-5 bg-gray-700/50 rounded-full flex items-center justify-center">
             <svg class="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -327,7 +327,7 @@
 </div>
 
 {# Form card #}
-<div class="card-glow bg-gray-800/80 rounded-2xl border border-gray-700/50 overflow-visible">
+<div class="card-glow animate-fade-in bg-gray-800/80 rounded-2xl border border-gray-700/50 overflow-visible">
     <form action="/submit_picks" method="post" id="picks-form" novalidate>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         {% if editing %}<input type="hidden" name="editing" value="1">{% endif %}
@@ -436,7 +436,7 @@
 
 {% block scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('turbo:load', () => {
     // ── Choices.js init ────────────────────────────────────────────────────────
     const choicesConfig = {
         removeItemButton: true,

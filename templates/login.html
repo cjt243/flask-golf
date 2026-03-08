@@ -29,7 +29,7 @@
         </div>
         {% endif %}
 
-        <form action="/auth/request-link" method="POST" class="space-y-6">
+        <form action="/auth/request-link" method="POST" data-turbo="false" class="space-y-6">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             {% if request.args.get('next') %}
             <input type="hidden" name="next" value="{{ request.args.get('next') }}">

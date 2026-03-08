@@ -110,6 +110,16 @@ Team chip highlighting (`toggleTeamHighlight()` / `updateRowHighlighting()`) wor
 
 In-memory dict, 5-minute TTL, per-worker (not shared). Use `clear_tournament_cache(tournament_id)` to clear specific caches, or `clear_tournament_cache()` to clear all. Called on pick submission, tournament activation, golfer refresh, and tier changes.
 
+### Turbo Drive
+
+Hotwire Turbo Drive 8.0.12 loaded via ESM import in `base.html`. Intercepts link clicks and form submissions, swapping `<body>` without full page reloads. `<meta name="turbo-cache-control" content="no-preview">` disables preview caching.
+
+**Key patterns:**
+- Use `turbo:load` instead of `DOMContentLoaded` for page-init JS — it fires on both initial load and Turbo navigations
+- Forms that return 200 with HTML (not redirects) must use `data-turbo="false"` — Turbo expects 303 redirects for POST responses
+- Currently disabled on: login form, request access form
+- CSS `animate-fade-in` on cards/rows for smooth page transition feel
+
 ### Feedback Widget
 
 Floating speech bubble button (bottom-right) on all authenticated pages (`{% if show_nav %}` block in `base.html`). Opens a popover with a textarea; submits via `fetch()` POST to `/submit-feedback`. Feedback stored in `feedback` table with `user_id`, `page_url`, `message`, and `resolved` flag. Admin view at `/admin/feedback` with Open/Resolved/All filter tabs and per-item toggle button. Linked from the admin dashboard.
