@@ -189,7 +189,7 @@ GitHub Actions runs pytest on push/PR to `main` (`.github/workflows/test.yml`). 
 
 The `apply_cut_modifier()` helper adjusts golfer scores on the leaderboard based on whether they made or missed the cut. The `cut_line` value is stored as an integer in `tournament_metadata` (parsed from the API via `parse_score_to_int()`).
 
-**API convention vs app convention:** The Golf API's `cutScore` = "the score needed to make the cut" (e.g., "E" = 0). The app's `cut_line` = "the score assigned to missed-cut golfers" (one stroke worse). Relationship: `app_cut_line = API_cutScore + 1`. This conversion happens during golfer refresh.
+**API convention vs app convention:** The Golf API's `cutScore` = "the worst score that makes the cut" (e.g., "+2"). The app's `cut_line` = "the score assigned to missed-cut golfers" (one stroke worse). Relationship: `app_cut_line = API_cutScore + 1`. This conversion happens during golfer refresh. **Display convention:** The player standings template shows `cut_line - 1` (the actual cut line, i.e. the worst score that makes the cut), not the internal `cut_line` value.
 
 **Rules:**
 - **Missed cut** (`status == 'cut'`): score = `cut_line`. Example: cut is +1, golfer missed at +7 → score becomes +1.
