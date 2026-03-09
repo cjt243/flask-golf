@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 from urllib.parse import quote, urlparse
 
-import libsql_experimental as libsql
+import libsql
 import requests
 import resend
 from argon2 import PasswordHasher, Type
@@ -95,97 +95,46 @@ _cache = {}
 # =============================================================================
 
 class LibSQLConnectionWrapper:
-    """Wrapper that auto-converts list params to tuples for libsql compatibility.
-
-    Handles Turso Hrana "Stream already in use" errors by reconnecting.
-    """
+    """Wrapper that auto-converts list params to tuples for libsql compatibility."""
 
     def __init__(self, conn):
         self._conn = conn
 
-    def _reconnect(self):
-        """Replace the underlying connection with a fresh one."""
-        try:
-            self._conn.close()
-        except Exception:
-            pass
-        db_url = os.getenv('TURSO_DATABASE_URL', 'file:local.db')
-        auth_token = os.getenv('TURSO_AUTH_TOKEN', '')
-        if db_url.startswith('file:'):
-            self._conn = libsql.connect(db_url.replace('file:', ''))
-        else:
-            self._conn = libsql.connect(db_url, auth_token=auth_token)
-
-    def _is_stream_error(self, e):
-        return 'Stream already in use' in str(e)
-
     def execute(self, sql, parameters=None):
         if parameters is not None and isinstance(parameters, list):
             parameters = tuple(parameters)
-        try:
-            if parameters is not None:
-                return self._conn.execute(sql, parameters)
-            return self._conn.execute(sql)
-        except (ValueError, Exception) as e:
-            if self._is_stream_error(e):
-                logger.warning("Stream error on execute, reconnecting: %s", e)
-                self._reconnect()
-                if parameters is not None:
-                    return self._conn.execute(sql, parameters)
-                return self._conn.execute(sql)
-            raise
+        if parameters is not None:
+            return self._conn.execute(sql, parameters)
+        return self._conn.execute(sql)
 
     def executescript(self, sql):
         return self._conn.executescript(sql)
 
     def commit(self):
-        try:
-            return self._conn.commit()
-        except (ValueError, Exception) as e:
-            if self._is_stream_error(e):
-                logger.warning("Stream error on commit, reconnecting: %s", e)
-                self._reconnect()
-                return self._conn.commit()
-            raise
-
-    def close(self):
-        try:
-            self._conn.close()
-        except Exception:
-            pass
+        return self._conn.commit()
 
     def __getattr__(self, name):
         return getattr(self._conn, name)
 
 
-def _create_db_connection():
-    """Create a new database connection."""
-    db_url = os.getenv('TURSO_DATABASE_URL', 'file:local.db')
-    auth_token = os.getenv('TURSO_AUTH_TOKEN', '')
-
-    if db_url.startswith('file:'):
-        conn = libsql.connect(db_url.replace('file:', ''))
-    else:
-        conn = libsql.connect(db_url, auth_token=auth_token)
-    return LibSQLConnectionWrapper(conn)
-
-
 def get_db():
     """Get database connection for current request."""
     if 'db' not in g:
-        g.db = _create_db_connection()
+        db_url = os.getenv('TURSO_DATABASE_URL', 'file:local.db')
+        auth_token = os.getenv('TURSO_AUTH_TOKEN', '')
+
+        if db_url.startswith('file:'):
+            conn = libsql.connect(db_url.replace('file:', ''))
+        else:
+            conn = libsql.connect(db_url, auth_token=auth_token)
+        g.db = LibSQLConnectionWrapper(conn)
     return g.db
 
 
 @app.teardown_appcontext
 def close_db(exception):
     """Close database connection at end of request."""
-    db = g.pop('db', None)
-    if db is not None:
-        try:
-            db.close()
-        except Exception:
-            pass
+    g.pop('db', None)
 
 
 def init_db():

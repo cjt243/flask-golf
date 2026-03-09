@@ -45,7 +45,7 @@ def db(app_instance, tmp_path):
     os.environ['TURSO_DATABASE_URL'] = f'file:{db_file}'
 
     with app_instance.app_context():
-        import libsql_experimental as libsql
+        import libsql
         conn = libsql.connect(str(db_file))
         wrapped = app_module.LibSQLConnectionWrapper(conn)
 
