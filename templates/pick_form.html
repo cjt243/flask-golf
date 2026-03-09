@@ -183,8 +183,8 @@
         border-radius: 2px;
     }
     .pick-tier--gold::before   { background: linear-gradient(to bottom, #fbbf24, #f59e0b); }
-    .pick-tier--green::before  { background: linear-gradient(to bottom, #22c55e, #16a34a); }
-    .pick-tier--muted::before  { background: linear-gradient(to bottom, #4ade80, #166534); }
+    .pick-tier--blue::before   { background: linear-gradient(to bottom, #60a5fa, #3b82f6); }
+    .pick-tier--purple::before { background: linear-gradient(to bottom, #c084fc, #a855f7); }
 
     /* ─── Counter badge ────────────────────────────────────────────────────── */
     .pick-counter {
@@ -201,7 +201,7 @@
         transition: background-color 0.2s, color 0.2s;
     }
     .pick-counter--empty  { background: #374151; color: #6b7280; }
-    .pick-counter--partial{ background: #7c3aed33; color: #a78bfa; }
+    .pick-counter--partial{ background: rgba(96, 165, 250, 0.2); color: #93c5fd; }
     .pick-counter--full   { background: #15803d; color: #bbf7d0; }
 
     /* ─── Single-select Choices.js overrides ─────────────────────────────── */
@@ -267,7 +267,7 @@
 
 {# ── State: Picks Locked ──────────────────────────────────────────────────── #}
 {% if picks_locked %}
-<div class="card-glow animate-fade-in bg-gray-800/80 rounded-2xl border border-red-900/50 overflow-hidden">
+<div class="card-glow animate-fade-in bg-gray-800/80 rounded-xl border border-red-900/50 overflow-hidden">
     <div class="px-8 py-14 text-center">
         <div class="w-16 h-16 mx-auto mb-5 bg-red-950/60 border border-red-800/60 rounded-full flex items-center justify-center">
             <svg class="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -284,7 +284,7 @@
 
 {# ── State: No Golfer Data ─────────────────────────────────────────────────── #}
 {% elif not first %}
-<div class="card-glow animate-fade-in bg-gray-800/80 rounded-2xl border border-gray-700/50 overflow-hidden">
+<div class="card-glow animate-fade-in bg-gray-800/80 rounded-xl border border-gray-700/50 overflow-hidden">
     <div class="px-8 py-14 text-center">
         <div class="w-16 h-16 mx-auto mb-5 bg-gray-700/50 rounded-full flex items-center justify-center">
             <svg class="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -327,7 +327,7 @@
 </div>
 
 {# Form card #}
-<div class="card-glow animate-fade-in bg-gray-800/80 rounded-2xl border border-gray-700/50 overflow-visible">
+<div class="card-glow animate-fade-in bg-gray-800/80 rounded-xl border border-gray-700/50 overflow-visible">
     <form action="/submit_picks" method="post" id="picks-form" novalidate>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         {% if editing %}<input type="hidden" name="editing" value="1">{% endif %}
@@ -376,7 +376,7 @@
 
             {# ── Field 3: 6–16 Picks ─────────────────────────────────────────── #}
             <div class="px-6 py-6">
-                <div class="pick-tier pick-tier--green">
+                <div class="pick-tier pick-tier--blue">
                     <div class="flex items-center justify-between mb-3">
                         <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">
                             Mid-Field Picks
@@ -394,7 +394,7 @@
 
             {# ── Field 4: 17+ Picks ──────────────────────────────────────────── #}
             <div class="px-6 py-6">
-                <div class="pick-tier pick-tier--muted">
+                <div class="pick-tier pick-tier--purple">
                     <div class="flex items-center justify-between mb-3">
                         <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">
                             Long Shot Picks
@@ -438,16 +438,14 @@
 <script>
 document.addEventListener('turbo:load', () => {
     // ── Choices.js init ────────────────────────────────────────────────────────
-    const choicesConfig = {
-        removeItemButton: true,
-        maxItemCount: 2,
+    const sharedConfig = {
         searchEnabled: true,
         placeholder: true,
-        placeholderValue: 'Search and select golfers...',
         noResultsText: 'No golfers found',
-        noChoicesText: 'No more options',
-        maxItemText: (max) => `All ${max} picks made`,
-        itemSelectText: '',   // suppress the "Press to select" hint
+        itemSelectText: '',
+        shouldSort: false,
+        allowHTML: false,
+        searchPlaceholderValue: 'Search golfers...',
         classNames: {
             containerOuter: 'choices',
             containerInner: 'choices__inner',
@@ -468,18 +466,21 @@ document.addEventListener('turbo:load', () => {
         },
     };
 
+    const multiConfig = {
+        ...sharedConfig,
+        removeItemButton: true,
+        maxItemCount: 2,
+        placeholderValue: 'Search and select golfers...',
+        noChoicesText: 'No more options',
+        maxItemText: (max) => `All ${max} picks made`,
+    };
+
     // Single-select for Top 5
     const topSelect = document.getElementById('golfer_1');
     if (topSelect) {
         new Choices(topSelect, {
-            searchEnabled: true,
-            placeholder: true,
+            ...sharedConfig,
             placeholderValue: 'Select a golfer...',
-            noResultsText: 'No golfers found',
-            itemSelectText: '',
-            shouldSort: false,
-            searchPlaceholderValue: 'Search golfers...',
-            allowHTML: false,
         });
     }
 
@@ -487,8 +488,8 @@ document.addEventListener('turbo:load', () => {
     const midSelect  = document.getElementById('select-mid');
     const longSelect = document.getElementById('select-long');
 
-    const midChoices  = midSelect  ? new Choices(midSelect,  choicesConfig) : null;
-    const longChoices = longSelect ? new Choices(longSelect, choicesConfig) : null;
+    const midChoices  = midSelect  ? new Choices(midSelect,  multiConfig) : null;
+    const longChoices = longSelect ? new Choices(longSelect, multiConfig) : null;
 
     // ── Live pick counters ─────────────────────────────────────────────────────
     function updateCounter(counterId, count, max) {

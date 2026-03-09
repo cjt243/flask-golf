@@ -16,10 +16,10 @@
 {% endblock %}
 
 {% block nav_subtitle %}
-    <div class="mt-2">
-        <h2 class="font-display text-lg text-gray-200">{{ tournament_name }}</h2>
-        <p class="text-xs text-gray-400">{{ last_updated }}</p>
-    </div>
+<div class="mt-1">
+    <span class="text-sm font-semibold text-golf-gold-400">{{ tournament_name }}</span>
+    <span class="text-xs text-gray-500 ml-2">{{ last_updated }}</span>
+</div>
 {% endblock %}
 
 {% block main_class %}max-w-4xl mx-auto px-4 py-6{% endblock %}
@@ -99,7 +99,7 @@
             {% set ns.prev_tier = row.TIER %}
             {% endif %}
 
-            <div class="player-card animate-fade-in bg-gray-800 rounded-lg border border-gray-700/60 overflow-hidden"
+            <div class="player-card animate-fade-in bg-gray-800/80 rounded-xl border border-gray-700/50 overflow-hidden"
                  data-name="{{ row.GOLFER|lower }}"
                  data-status="{{ row.PLAYER_STATUS|lower }}"
                  data-tier="{{ row.TIER }}"
@@ -184,7 +184,7 @@
         </div>
 
         {# --- Desktop Table --- #}
-        <div class="hidden sm:block bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-xl">
+        <div class="hidden sm:block bg-gray-800/80 rounded-xl border border-gray-700/50 overflow-hidden shadow-xl">
             <table class="w-full text-sm" id="playersTable">
                 <thead class="bg-gray-700/80 text-gray-300 text-xs uppercase tracking-wide">
                     <tr>
@@ -497,10 +497,10 @@
                 if (selectedTeams.size > 0) {
                     card.classList.toggle('opacity-40', !hasSelected);
                     card.classList.toggle('border-golf-gold-500', hasSelected);
-                    card.classList.toggle('border-gray-700/60', !hasSelected);
+                    card.classList.toggle('border-gray-700/50', !hasSelected);
                 } else {
                     card.classList.remove('opacity-40', 'border-golf-gold-500');
-                    card.classList.add('border-gray-700/60');
+                    card.classList.add('border-gray-700/50');
                 }
             });
         }
