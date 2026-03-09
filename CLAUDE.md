@@ -57,7 +57,7 @@ Magic link email → Argon2-hashed tokens → SHA-256 session cookies (7-day exp
 
 ### Database
 
-Turso/libSQL via `libsql_experimental`. The `LibSQLConnectionWrapper` auto-converts list params to tuples. All queries use parameterized SQL (no ORM).
+Turso/libSQL via `libsql` (stable package, replaced `libsql_experimental`). The `LibSQLConnectionWrapper` auto-converts list params to tuples. All queries use parameterized SQL (no ORM).
 
 **Tables**: `users`, `auth_tokens`, `sessions`, `tournaments`, `entries`, `golfers`, `tournament_metadata`, `rate_limits`, `security_events`, `access_requests`, `app_settings`, `failed_logins`, `feedback`
 
