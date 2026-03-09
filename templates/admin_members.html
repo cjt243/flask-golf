@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% set show_nav = true %}
+{% set active_tab = 'admin' %}
+
+{% block title %}Members & Winnings - Admin{% endblock %}
+
+{% block main_class %}max-w-6xl mx-auto px-4 py-8{% endblock %}
+
+{% block content %}
+    <div class="mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="font-display text-2xl text-white">Members & Winnings</h1>
+                <p class="text-sm text-gray-400 mt-1">{{ members|length }} member{{ 's' if members|length != 1 }}</p>
+            </div>
+            <a href="/admin" class="px-3 py-1.5 text-xs bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors">
+                Back to Admin
+            </a>
+        </div>
+    </div>
+
+    <!-- Members Table -->
+    <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-x-auto mb-8">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-700/50">
+                <tr>
+                    <th class="px-4 py-3 text-left font-medium text-gray-300">Name</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-300">Email</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-300">Joined</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-300">Last Login</th>
+                    {% for season in seasons %}
+                    <th class="px-4 py-3 text-right font-medium text-gray-300">{{ season }}</th>
+                    {% endfor %}
+                    {% if seasons %}
+                    <th class="px-4 py-3 text-right font-medium text-golf-gold-300">Lifetime</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-700">
+                {% for m in members %}
+                <tr class="hover:bg-gray-700/30">
+                    <td class="px-4 py-3 font-medium text-white whitespace-nowrap">
+                        {{ m.name }}
+                        {% if m.is_admin %}
+                        <span class="ml-1 px-1.5 py-0.5 text-xs bg-purple-600/30 text-purple-300 rounded">Admin</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-gray-400">{{ m.email }}</td>
+                    <td class="px-4 py-3 text-gray-400 whitespace-nowrap">{{ m.created_at[:10] if m.created_at else '—' }}</td>
+                    <td class="px-4 py-3 text-gray-400 whitespace-nowrap">{{ m.last_login[:10] if m.last_login else '—' }}</td>
+                    {% for season in seasons %}
+                    <td class="px-4 py-3 text-right whitespace-nowrap {{ 'text-green-400' if m.season_winnings[season] > 0 else 'text-gray-600' }}">
+                        ${{ '%.2f'|format(m.season_winnings[season]) }}
+                    </td>
+                    {% endfor %}
+                    {% if seasons %}
+                    <td class="px-4 py-3 text-right font-medium whitespace-nowrap {{ 'text-golf-gold-300' if m.lifetime > 0 else 'text-gray-600' }}">
+                        ${{ '%.2f'|format(m.lifetime) }}
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Tournament Results -->
+    {% if tournament_results %}
+    <div class="mb-6">
+        <h2 class="text-lg font-semibold text-white mb-3">Tournament Results</h2>
+        <div class="space-y-2">
+            {% for t in tournament_results %}
+            <div class="bg-gray-800 rounded-lg p-3 border border-gray-700 flex items-center justify-between">
+                <div>
+                    <span class="text-white text-sm font-medium">{{ t.name }}</span>
+                    <span class="text-gray-500 text-xs ml-2">{{ t.season }}</span>
+                </div>
+                <div class="text-right">
+                    <span class="text-green-400 text-sm font-medium">${{ '%.2f'|format(t.per_winner) }}</span>
+                    <span class="text-gray-500 text-xs ml-1">
+                        {% if t.winners|length > 1 %}(split {{ t.winners|length }} ways){% endif %}
+                        &rarr; {{ t.winners|join(', ') }}
+                    </span>
+                    <span class="text-gray-600 text-xs ml-2">Pot: ${{ t.pot }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+{% endblock %}

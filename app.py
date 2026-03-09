@@ -856,6 +856,43 @@ def compute_leaderboard(tournament_id):
     return results, metadata
 
 
+def compute_tournament_winners(tournament_id):
+    """Compute winners and pot for a completed tournament.
+
+    Returns {'winners': [user_ids], 'pot': int, 'per_winner': float}
+    or None if no entries.
+    """
+    entries = get_entries(tournament_id)
+    if not entries:
+        return None
+
+    golfers = {g['name']: g for g in get_golfers(tournament_id)}
+    metadata = get_tournament_metadata(tournament_id)
+    cut_line = metadata.get('cut_line') if metadata else None
+    pot = len(entries) * 5
+
+    # Score each entry
+    scores = []
+    for entry in entries:
+        picks = [entry[f'golfer_{i}'] for i in range(1, 6)]
+        total = 0
+        for pick in picks:
+            golfer = golfers.get(pick)
+            if golfer is None:
+                total += 999
+            elif golfer.get('total_score') is None:
+                total += 0
+            else:
+                total += apply_cut_modifier(golfer['total_score'], golfer.get('status'), cut_line)
+        scores.append((entry['user_id'], total))
+
+    best = min(s[1] for s in scores)
+    winners = [s[0] for s in scores if s[1] == best]
+    per_winner = round(pot / len(winners), 2)
+
+    return {'winners': winners, 'pot': pot, 'per_winner': per_winner}
+
+
 def compute_player_standings(tournament_id):
     """Compute player standings with selection info."""
     entries = get_entries(tournament_id)
@@ -2353,6 +2390,82 @@ def admin_feedback_toggle():
 
     status = request.args.get('status', request.form.get('status', 'open'))
     return redirect(url_for('admin_feedback', status=status))
+
+
+@app.route('/admin/members')
+@admin_required
+def admin_members():
+    """Admin page showing all members and per-season/lifetime winnings."""
+    db = get_db()
+
+    # Get all users
+    users = db.execute("""
+        SELECT id, email, first_name, last_name, created_at
+        FROM users ORDER BY created_at ASC
+    """).fetchall()
+
+    members = []
+    for u in users:
+        # Get last login from sessions table
+        last_session = db.execute("""
+            SELECT MAX(created_at) FROM sessions WHERE user_id = ?
+        """, [u[0]]).fetchone()
+        members.append({
+            'id': u[0],
+            'email': u[1],
+            'first_name': u[2] or '',
+            'last_name': u[3] or '',
+            'name': f"{u[2] or ''} {u[3] or ''}".strip() or u[1],
+            'created_at': u[4],
+            'last_login': last_session[0] if last_session and last_session[0] else None,
+            'is_admin': u[1] in app.config.get('ADMIN_EMAILS', [])
+        })
+
+    # Get completed tournaments grouped by season
+    tournaments = db.execute("""
+        SELECT id, name, season_year FROM tournaments
+        WHERE picks_locked = 1
+        ORDER BY season_year ASC, id ASC
+    """).fetchall()
+
+    # Compute winnings per user per season
+    winnings = {}  # {user_id: {season_year: amount}}
+    tournament_results = []
+    seasons = sorted(set(t[2] for t in tournaments))
+
+    for t in tournaments:
+        tid, tname, season = t[0], t[1], t[2]
+        result = compute_tournament_winners(tid)
+        if result is None:
+            continue
+
+        winner_names = []
+        for uid in result['winners']:
+            m = next((m for m in members if m['id'] == uid), None)
+            if m:
+                winner_names.append(m['name'])
+            winnings.setdefault(uid, {})
+            winnings[uid][season] = winnings[uid].get(season, 0) + result['per_winner']
+
+        tournament_results.append({
+            'name': tname,
+            'season': season,
+            'pot': result['pot'],
+            'winners': winner_names,
+            'per_winner': result['per_winner']
+        })
+
+    # Compute lifetime totals
+    for m in members:
+        m['season_winnings'] = {}
+        for s in seasons:
+            m['season_winnings'][s] = winnings.get(m['id'], {}).get(s, 0)
+        m['lifetime'] = sum(m['season_winnings'].values())
+
+    return render_template('admin_members.html',
+                           members=members,
+                           seasons=seasons,
+                           tournament_results=tournament_results)
 
 
 # =============================================================================

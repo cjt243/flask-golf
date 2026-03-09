@@ -14,14 +14,14 @@ Flask Golf is a single-file Flask web app for a fantasy golf league ("80 Yard Bo
 
 | File / Dir | Purpose |
 |------------|---------|
-| `app.py` | Entire application (~2500 lines) |
+| `app.py` | Entire application (~2600 lines) |
 | `schema.sql` | Database schema (Turso/libSQL) |
-| `templates/*.html` | 13 Jinja2 page templates — all extend `base.html`; `macros.html` has shared macros |
+| `templates/*.html` | 14 Jinja2 page templates — all extend `base.html`; `macros.html` has shared macros |
 | `templates/emails/*.html` | 3 email templates (magic_link, admin_notification, approval) |
 | `static/css/styles.css` | Tailwind CSS output (28KB minified) |
 | `static/src/input.css` | Tailwind CSS source |
 | `tailwind.config.js` | Tailwind build config with custom golf colors |
-| `tests/` | 92 pytest tests (auth, picks, leaderboard, admin, utils) |
+| `tests/` | 97 pytest tests (auth, picks, leaderboard, admin, utils) |
 | `.github/workflows/` | CI (test.yml) + auto-refresh cron (auto-refresh.yml) |
 | `gunicorn_config.py` | Production server config (port 8080, 2 workers) |
 | `requirements.txt` | Pinned Python dependencies |
@@ -45,6 +45,7 @@ Flask Golf is a single-file Flask web app for a fantasy golf league ("80 Yard Bo
 | `/admin` + sub-routes | Admin | Tournament management, user approval, tiers, refresh schedule |
 | `/admin/feedback` | Admin | View/filter user feedback (open/resolved/all) |
 | `/admin/feedback/toggle` | Admin+CSRF | Toggle feedback resolved status |
+| `/admin/members` | Admin | Members list with per-season/lifetime winnings |
 | `/health` | Public | Health check JSON |
 | `/clear_cache` | Admin | Clear in-memory cache |
 | `/api/auto-refresh` | API Key/Admin | Automated golfer score refresh (POST) |
@@ -145,7 +146,7 @@ export PATH="$HOME/.local/share/fnm:$PATH" && eval "$(fnm env)"
 - Security events logged to `security_events` table
 - Templates extend `base.html` — nav, footer, Tailwind config are shared. Use `{% set show_nav = true %}` and `{% set active_tab = '...' %}` for authenticated pages
 - `templates/macros.html` provides `form_button()` (admin action forms) and `empty_state()` (no-data cards) macros — import with `{% from "macros.html" import form_button, empty_state %}`
-- Shared helpers reduce duplication: `format_last_updated()`, `clear_tournament_cache()`, `get_tournament_external_info()`, `compute_tier()` with `TIER_BOUNDARIES` constant, `_build_tier_lists(tournament_id)`, `_render_pick_form()`
+- Shared helpers reduce duplication: `format_last_updated()`, `clear_tournament_cache()`, `get_tournament_external_info()`, `compute_tier()` with `TIER_BOUNDARIES` constant, `_build_tier_lists(tournament_id)`, `_render_pick_form()`, `compute_tournament_winners(tournament_id)`
 - Rate limiting uses `INSERT ... ON CONFLICT DO UPDATE` upsert pattern
 - Token verification logic lives in `_verify_magic_token()`, API schedule parsing in `_parse_api_schedule()`, player name extraction in `_extract_player_name()`
 - Session cleanup is probabilistic (~1% of authenticated requests)
@@ -206,6 +207,6 @@ The `apply_cut_modifier()` helper adjusts golfer scores on the leaderboard based
 - **Made cut** (any other status): score = `min(actual_score, cut_line - 1)`. Example: cut is +1, golfer at +3 → score becomes 0 (cut_line - 1).
 - If a golfer makes the cut and finishes under the cap, their actual score is used (no adjustment).
 
-**Applied in:** `compute_leaderboard()` (team scores), leaderboard route `player_scores` dict, player standings route `TOTAL_SCORE_INTEGER`. Raw `total_score` in the `golfers` table is never modified.
+**Applied in:** `compute_leaderboard()` (team scores), `compute_tournament_winners()` (winnings), leaderboard route `player_scores` dict, player standings route `TOTAL_SCORE_INTEGER`. Raw `total_score` in the `golfers` table is never modified.
 
 **Falsy-zero caution:** Cut line can be 0 (Even par). Always use `is not None` checks, never truthiness checks (`if cut_line` would fail for E/0). This applies in both Python and Jinja2 templates (`{% if cut_line is not none %}`).
