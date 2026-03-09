@@ -284,6 +284,94 @@
         animation: dropdown-in 0.15s ease forwards;
     }
 
+    /* ─── Mobile bottom-sheet dropdown ────────────────────────────────────── */
+    @media (max-width: 639px) {
+        /* Backdrop overlay */
+        .choices-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(2px);
+            -webkit-backdrop-filter: blur(2px);
+            z-index: 40;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .choices-backdrop.is-active {
+            display: block;
+            opacity: 1;
+        }
+
+        /* Transform dropdown into bottom sheet */
+        .choices.is-open .choices__list--dropdown,
+        .choices.is-open .choices__list[aria-expanded] {
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            top: auto !important;
+            width: 100% !important;
+            max-height: 70vh !important;
+            border-radius: 1rem 1rem 0 0 !important;
+            border: none !important;
+            border-top: 1px solid rgba(75, 85, 99, 0.4) !important;
+            box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.5) !important;
+            z-index: 50 !important;
+            animation: sheet-up 0.25s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+            padding-bottom: env(safe-area-inset-bottom, 0.5rem);
+        }
+
+        @keyframes sheet-up {
+            from { opacity: 0; transform: translateY(100%); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Drag handle indicator */
+        .choices.is-open .choices__list--dropdown::before {
+            content: "";
+            display: block;
+            width: 2.25rem;
+            height: 0.25rem;
+            background: rgba(156, 163, 175, 0.4);
+            border-radius: 2px;
+            margin: 0.625rem auto 0.25rem;
+        }
+
+        /* Larger scrollable area */
+        .choices.is-open .choices__list--dropdown .choices__list {
+            max-height: calc(70vh - 4rem) !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+
+        /* Bigger touch targets */
+        .choices.is-open .choices__list--dropdown .choices__item {
+            padding: 0.875rem 1.125rem !important;
+            font-size: 1rem !important;
+            min-height: 2.75rem;
+        }
+
+        /* Sticky search in bottom sheet */
+        .choices.is-open .choices__list--dropdown .choices__input {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            padding: 0.875rem 1rem !important;
+            font-size: 1rem !important;
+            background-color: #1f2937 !important;
+            border-bottom: 1px solid rgba(55, 65, 81, 0.5) !important;
+        }
+
+        /* Prevent body scroll when sheet is open */
+        body.choices-sheet-open {
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+        }
+    }
+
     /* ─── Submit button pulse on ready ────────────────────────────────────── */
     @keyframes subtle-glow {
         0%, 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
@@ -511,11 +599,13 @@ document.addEventListener('turbo:load', () => {
 
     // Single-select for Top 5
     const topSelect = document.getElementById('golfer_1');
+    let topChoices = null;
     if (topSelect) {
-        new Choices(topSelect, {
+        topChoices = new Choices(topSelect, {
             ...sharedConfig,
             placeholderValue: 'Select a golfer...',
         });
+        attachSheetEvents(topChoices);
     }
 
     // Multi-selects for 6-16 and 17+
@@ -524,6 +614,63 @@ document.addEventListener('turbo:load', () => {
 
     const midChoices  = midSelect  ? new Choices(midSelect,  multiConfig) : null;
     const longChoices = longSelect ? new Choices(longSelect, multiConfig) : null;
+
+    attachSheetEvents(midChoices);
+    attachSheetEvents(longChoices);
+
+    // Backdrop tap closes all dropdowns
+    if (isMobile && backdrop) {
+        backdrop.addEventListener('click', () => {
+            [topChoices, midChoices, longChoices].forEach(c => {
+                if (c) c.hideDropdown();
+            });
+            closeSheet();
+        });
+    }
+
+    // ── Mobile bottom-sheet backdrop ────────────────────────────────────────────
+    const isMobile = window.matchMedia('(max-width: 639px)').matches;
+    let backdrop = document.getElementById('choices-backdrop');
+    let savedScrollY = 0;
+
+    if (isMobile && !backdrop) {
+        backdrop = document.createElement('div');
+        backdrop.className = 'choices-backdrop';
+        backdrop.id = 'choices-backdrop';
+        document.body.appendChild(backdrop);
+    }
+
+    function openSheet() {
+        if (!isMobile) return;
+        savedScrollY = window.scrollY;
+        document.body.classList.add('choices-sheet-open');
+        document.body.style.top = `-${savedScrollY}px`;
+        backdrop?.classList.add('is-active');
+    }
+
+    function closeSheet() {
+        if (!isMobile) return;
+        document.body.classList.remove('choices-sheet-open');
+        document.body.style.top = '';
+        window.scrollTo(0, savedScrollY);
+        backdrop?.classList.remove('is-active');
+    }
+
+    // Hook into Choices.js showDropdown/hideDropdown events
+    function attachSheetEvents(choicesEl) {
+        if (!isMobile || !choicesEl) return;
+        const container = choicesEl.containerOuter?.element || choicesEl.containerOuter;
+        if (!container) return;
+
+        const observer = new MutationObserver(() => {
+            if (container.classList.contains('is-open')) {
+                openSheet();
+            } else {
+                closeSheet();
+            }
+        });
+        observer.observe(container, { attributes: true, attributeFilter: ['class'] });
+    }
 
     // ── Live pick counters ─────────────────────────────────────────────────────
     function updateCounter(counterId, count, max) {
