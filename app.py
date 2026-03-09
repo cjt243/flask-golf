@@ -1548,6 +1548,19 @@ def player_standings():
                              last_updated='N/A',
                              cut_line=None,
                              is_fallback=True,
+                             picks_locked=True,
+                             all_teams=[],
+                             user=g.user)
+
+    # Hide player standings until picks are locked
+    if not tournament['picks_locked']:
+        return render_template('player_standings.html',
+                             tournament_name=tournament['name'],
+                             results=[],
+                             last_updated='N/A',
+                             cut_line=None,
+                             is_fallback=False,
+                             picks_locked=False,
                              all_teams=[],
                              user=g.user)
 
@@ -1611,6 +1624,7 @@ def player_standings():
                          last_updated=last_updated,
                          cut_line=metadata.get('cut_line') if metadata else None,
                          is_fallback=False,
+                         picks_locked=True,
                          all_teams=sorted(all_teams),
                          user=g.user)
 

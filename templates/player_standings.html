@@ -25,6 +25,17 @@
 {% block main_class %}max-w-4xl mx-auto px-4 py-6{% endblock %}
 
 {% block content %}
+    {% if not picks_locked %}
+    {# Hide standings until picks are locked #}
+    {% from "macros.html" import empty_state %}
+    {{ empty_state(
+        'M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
+        'Player standings will be available once picks are locked.',
+        'Make your picks before the tournament starts!',
+        url_for('make_picks'),
+        'Make Your Picks'
+    ) }}
+    {% else %}
         {# --- Filter Bar --- #}
         <div class="sticky top-0 z-40 mb-4">
             <div class="bg-gray-800/95 backdrop-blur-sm border border-gray-700 rounded-xl px-4 py-3 shadow-lg">
@@ -280,6 +291,7 @@
                 </tbody>
             </table>
         </div>
+    {% endif %}
 {% endblock %}
 
 {% block scripts %}
