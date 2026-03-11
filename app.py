@@ -420,6 +420,30 @@ def save_refresh_schedule(start_hour, end_hour, days):
     db.commit()
 
 
+def get_stored_schedule(year, org_id='1'):
+    """Read cached tournament schedule from app_settings."""
+    key = f"tournament_schedule_{year}_{org_id}"
+    try:
+        db = get_db()
+        row = db.execute("SELECT value FROM app_settings WHERE key = ?", [key]).fetchone()
+        if row:
+            return json.loads(row[0])
+    except Exception:
+        pass
+    return None
+
+
+def save_schedule(year, org_id, schedule_data):
+    """Write tournament schedule to app_settings."""
+    key = f"tournament_schedule_{year}_{org_id}"
+    db = get_db()
+    db.execute(
+        "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
+        [key, json.dumps(schedule_data)]
+    )
+    db.commit()
+
+
 def is_within_refresh_window():
     """Check if the current Eastern time falls within the configured refresh schedule."""
     schedule = get_refresh_schedule()
@@ -1893,10 +1917,10 @@ def admin_dashboard():
         'golfer_count': t[7]
     } for t in tournaments]
 
-    # Fetch schedule from API and transform for display
+    # Load cached schedule from DB (fetched on demand via /admin/refresh-schedule)
     year = int(request.args.get('year', datetime.now().year))
     org_id = request.args.get('org', '1')
-    raw_schedule = fetch_tournament_schedule(year, org_id) or []
+    raw_schedule = get_stored_schedule(year, org_id) or []
     schedule = _parse_api_schedule(raw_schedule)
 
     api_connected = bool(os.getenv('GOLF_API_KEY'))
@@ -1928,6 +1952,24 @@ def admin_dashboard():
                          registration_open=registration_open,
                          refresh_schedule=refresh_schedule,
                          user=g.user)
+
+
+@app.route('/admin/refresh-schedule', methods=['POST'])
+@admin_required
+@csrf_required
+def admin_refresh_schedule():
+    """Fetch tournament schedule from API and store in DB."""
+    year = request.form.get('year', str(datetime.now().year))
+    org_id = request.form.get('org', '1')
+
+    raw_schedule = fetch_tournament_schedule(int(year), org_id)
+    if raw_schedule is not None:
+        save_schedule(year, org_id, raw_schedule)
+        flash('Schedule refreshed from API.', 'success')
+    else:
+        flash('Failed to fetch schedule from API.', 'error')
+
+    return redirect(url_for('admin_dashboard', year=year, org=org_id))
 
 
 @app.route('/admin/create-tournament', methods=['POST'])

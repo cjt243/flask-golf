@@ -236,8 +236,9 @@
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-xl font-semibold text-white">{{ year }} Tournament Schedule</h2>
 
-                <!-- Year/Tour selector -->
-                <form method="GET" class="flex items-center space-x-2">
+                <!-- Year/Tour selector + Fetch from API -->
+                <form method="POST" action="/admin/refresh-schedule" class="flex items-center space-x-2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <select name="year" class="px-3 py-1.5 text-sm bg-gray-700 border border-gray-600 rounded text-white">
                         {% for y in range(year - 1, year + 2) %}
                         <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
@@ -248,8 +249,8 @@
                         <option value="2" {% if org_id == '2' %}selected{% endif %}>LIV Golf</option>
                         <option value="3" {% if org_id == '3' %}selected{% endif %}>DP World Tour</option>
                     </select>
-                    <button type="submit" class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors">
-                        Load
+                    <button type="submit" class="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors">
+                        Fetch from API
                     </button>
                 </form>
             </div>
@@ -295,13 +296,9 @@
                     </tbody>
                 </table>
             </div>
-            {% elif api_connected %}
-            <div class="bg-gray-800 rounded-lg p-6 text-center border border-gray-700">
-                <p class="text-gray-400">No tournaments found in the schedule for {{ year }}.</p>
-            </div>
             {% else %}
             <div class="bg-gray-800 rounded-lg p-6 text-center border border-gray-700">
-                <p class="text-gray-400">Connect the Golf API to see available tournaments.</p>
+                <p class="text-gray-400">No schedule cached. Click "Fetch from API" to load tournaments.</p>
             </div>
             {% endif %}
         </section>
