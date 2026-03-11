@@ -1263,25 +1263,29 @@ def auth_request_link():
     email = validate_user_email(request.form.get('email', ''))
 
     if not email:
-        return render_template('login.html', error='Please enter a valid email address.')
+        return render_template('login.html', error='Please enter a valid email address.',
+                               registration_open=is_registration_open()), 422
 
     client_ip = get_client_ip()
 
     # Rate limiting
     if not check_rate_limit(email, 'magic_link_per_email'):
         log_security_event('rate_limited', request, email=email, details={'action': 'magic_link_per_email'})
-        return render_template('check_email.html', email=email)  # Don't reveal rate limit
+        session['check_email'] = email  # Don't reveal rate limit
+        return redirect(url_for('auth_check_email'))
 
     if not check_rate_limit(client_ip, 'magic_link_per_ip'):
         log_security_event('rate_limited', request, email=email, details={'action': 'magic_link_per_ip'})
-        return render_template('check_email.html', email=email)
+        session['check_email'] = email
+        return redirect(url_for('auth_check_email'))
 
     # Only send magic link if user exists (silent rejection for unregistered emails)
     db = get_db()
     existing_user = db.execute("SELECT id FROM users WHERE email = ?", [email]).fetchone()
     if not existing_user:
         log_security_event('magic_link_rejected', request, email=email, details={'reason': 'unregistered_email'})
-        return render_template('check_email.html', email=email)
+        session['check_email'] = email
+        return redirect(url_for('auth_check_email'))
 
     # Generate token
     raw_token = secrets.token_urlsafe(32)
@@ -1299,6 +1303,14 @@ def auth_request_link():
     send_magic_link(email, raw_token, next_url=next_url)
     log_security_event('magic_link_sent', request, email=email)
 
+    session['check_email'] = email
+    return redirect(url_for('auth_check_email'))
+
+
+@app.route('/auth/check-email')
+def auth_check_email():
+    """Check email confirmation page."""
+    email = session.pop('check_email', '')
     return render_template('check_email.html', email=email)
 
 
@@ -1436,13 +1448,13 @@ def auth_submit_access_request():
     last_name = request.form.get('last_name', '').strip()
 
     if not email:
-        return render_template('request_access.html', error='Please enter a valid email address.')
+        return render_template('request_access.html', error='Please enter a valid email address.'), 422
 
     if not first_name or len(first_name) > 50:
-        return render_template('request_access.html', error='Please enter a valid first name (1-50 characters).')
+        return render_template('request_access.html', error='Please enter a valid first name (1-50 characters).'), 422
 
     if not last_name or len(last_name) > 50:
-        return render_template('request_access.html', error='Please enter a valid last name (1-50 characters).')
+        return render_template('request_access.html', error='Please enter a valid last name (1-50 characters).'), 422
 
     # Basic sanitization
     first_name = html.escape(first_name)
@@ -1454,7 +1466,7 @@ def auth_submit_access_request():
     # Rate limit
     if not check_rate_limit(client_ip, 'access_request_per_ip'):
         log_security_event('rate_limited', request, email=email, details={'action': 'access_request_per_ip'})
-        return render_template('access_requested.html')
+        return redirect(url_for('auth_access_requested'))
 
     db = get_db()
 
@@ -1463,7 +1475,7 @@ def auth_submit_access_request():
     existing_request = db.execute("SELECT id FROM access_requests WHERE email = ?", [email]).fetchone()
 
     if existing_user or existing_request:
-        return render_template('access_requested.html')
+        return redirect(url_for('auth_access_requested'))
 
     # Insert access request
     try:
@@ -1478,6 +1490,12 @@ def auth_submit_access_request():
     except Exception as e:
         logger.error(f"Error creating access request: {e}")
 
+    return redirect(url_for('auth_access_requested'))
+
+
+@app.route('/auth/access-requested')
+def auth_access_requested():
+    """Access request confirmation page."""
     return render_template('access_requested.html')
 
 
