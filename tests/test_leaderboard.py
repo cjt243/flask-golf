@@ -197,12 +197,13 @@ class TestComputePlayerStandings:
 class TestApplyCutModifier:
     """Unit tests for apply_cut_modifier()."""
 
-    def test_missed_cut_returns_cut_line(self):
-        assert app_module.apply_cut_modifier(7, 'cut', 1) == 1
+    def test_missed_cut_returns_cut_line_plus_one(self):
+        # cut_line=1 means +1 makes the cut; missed → +2
+        assert app_module.apply_cut_modifier(7, 'cut', 1) == 2
 
     def test_made_cut_over_cap(self):
-        # Cut line +1, golfer at +3 → capped at cut_line - 1 = 0
-        assert app_module.apply_cut_modifier(3, 'active', 1) == 0
+        # Cut line +1, golfer at +3 → capped at cut_line = 1
+        assert app_module.apply_cut_modifier(3, 'active', 1) == 1
 
     def test_made_cut_under_par(self):
         # Under par is better than cap — use actual score
@@ -219,12 +220,12 @@ class TestApplyCutModifier:
         assert app_module.apply_cut_modifier(None, 'active', 1) is None
 
     def test_negative_cut_line(self):
-        # Cut at -1: missed → -1, made at +2 → -2
-        assert app_module.apply_cut_modifier(2, 'cut', -1) == -1
-        assert app_module.apply_cut_modifier(2, 'active', -1) == -2
+        # Cut at -1: missed → 0 (cut_line+1), made at +2 → -1 (cut_line)
+        assert app_module.apply_cut_modifier(2, 'cut', -1) == 0
+        assert app_module.apply_cut_modifier(2, 'active', -1) == -1
 
     def test_complete_status_treated_as_made_cut(self):
-        assert app_module.apply_cut_modifier(3, 'complete', 1) == 0
+        assert app_module.apply_cut_modifier(3, 'complete', 1) == 1
 
 
 class TestCutLineModifier:
@@ -234,7 +235,7 @@ class TestCutLineModifier:
         tid = _insert_tournament(db)
         _insert_metadata(db, tid, 1)
         uid = _insert_user(db, 'cut1@test.com')
-        # All 5 golfers missed cut at various scores — each becomes +1
+        # All 5 golfers missed cut — each gets cut_line + 1 = 2
         for name in ['G1', 'G2', 'G3', 'G4', 'G5']:
             _insert_golfer(db, tid, name, 5, status='cut')
         _insert_entry(db, tid, uid, 'Cut Team', ['G1', 'G2', 'G3', 'G4', 'G5'])
@@ -242,8 +243,8 @@ class TestCutLineModifier:
         with app_instance.app_context():
             results, _ = app_module.compute_leaderboard(tid)
 
-        # Each golfer: cut_line = 1, so 5 * 1 = 5
-        assert results[0]['team_score'] == 5
+        # Each golfer: cut_line + 1 = 2, so 5 * 2 = 10
+        assert results[0]['team_score'] == 10
 
     def test_made_cut_capped_score(self, app_instance, db):
         tid = _insert_tournament(db)
@@ -257,8 +258,8 @@ class TestCutLineModifier:
         with app_instance.app_context():
             results, _ = app_module.compute_leaderboard(tid)
 
-        # Each capped at cut_line - 1 = 0, so 5 * 0 = 0
-        assert results[0]['team_score'] == 0
+        # Each capped at cut_line = 1, so 5 * 1 = 5
+        assert results[0]['team_score'] == 5
 
     def test_under_par_actual_score_used(self, app_instance, db):
         tid = _insert_tournament(db)
@@ -271,7 +272,7 @@ class TestCutLineModifier:
         with app_instance.app_context():
             results, _ = app_module.compute_leaderboard(tid)
 
-        # -4 < 0 (cut_line - 1), so actual score used: 5 * -4 = -20
+        # -4 < 1 (cut_line), so actual score used: 5 * -4 = -20
         assert results[0]['team_score'] == -20
 
     def test_no_metadata_no_modifier(self, app_instance, db):

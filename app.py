@@ -813,8 +813,8 @@ def apply_cut_modifier(score, status, cut_line):
     if cut_line is None or score is None:
         return score
     if status == 'cut':
-        return cut_line
-    return min(score, cut_line - 1)
+        return cut_line + 1
+    return min(score, cut_line)
 
 
 def compute_leaderboard(tournament_id):
@@ -1055,10 +1055,8 @@ def refresh_golfers_from_api(tournament_id, tournament_external_id, year=None):
     cut_line_raw = data.get('cutLine')
     if cut_line_raw is None and data.get('cutLines'):
         cut_line_raw = data['cutLines'][0].get('cutScore')
-    # API cutScore = score needed to make the cut; app cut_line = score
-    # assigned to missed-cut golfers (one stroke worse), so add 1
-    cut_line_parsed = parse_score_to_int(cut_line_raw) if cut_line_raw is not None else None
-    cut_line = cut_line_parsed + 1 if cut_line_parsed is not None else None
+    # cut_line = API cutScore = worst score that still makes the cut
+    cut_line = parse_score_to_int(cut_line_raw) if cut_line_raw is not None else None
 
     for player in leaderboard:
         name = _extract_player_name(player)

@@ -11,8 +11,9 @@
 {% block nav_extra %}{% endblock %}
 
 {% block nav_subtitle %}
-<div class="mt-1">
+<div class="mt-1 flex items-center">
     <span class="text-sm font-semibold text-golf-gold-400">{{ tournament_name }}</span>
+    <button onclick="toggleRules()" class="ml-2 w-5 h-5 rounded-full border border-gray-600 text-gray-400 text-xs hover:border-gray-400 hover:text-gray-200 transition-colors flex items-center justify-center flex-shrink-0" aria-label="How it works" title="How it works">?</button>
     <span class="text-xs text-gray-500 ml-2">{{ last_updated }}</span>
 </div>
 {% endblock %}
@@ -58,6 +59,48 @@
 {% block main_class %}max-w-6xl mx-auto px-4 py-4{% endblock %}
 
 {% block content %}
+<!-- Rules Overlay -->
+<div id="rulesOverlay" class="fixed inset-0 z-50 bg-gray-900/95 overflow-y-auto hidden">
+    <div class="max-w-lg mx-auto px-5 py-8">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="font-display text-xl text-white">How It Works</h2>
+            <button onclick="toggleRules()" class="w-8 h-8 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 transition-colors flex items-center justify-center" aria-label="Close">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="space-y-5 ml-6 sm:ml-10">
+            <div class="border-l-2 border-golf-gold-400 pl-8">
+                <h3 class="text-sm font-semibold text-golf-gold-400 mb-1">The Game</h3>
+                <p class="text-sm text-gray-300">Pick 5 golfers across 3 tiers each week. $5 entry. Winner takes the pot.</p>
+            </div>
+            <div class="border-l-2 border-golf-green-400 pl-8">
+                <h3 class="text-sm font-semibold text-golf-green-400 mb-1">Tiers</h3>
+                <ul class="text-sm text-gray-300 space-y-1">
+                    <li><span class="text-golf-gold-400 font-medium">Tier 1</span> — Top 5 players · pick 1</li>
+                    <li><span class="text-golf-green-400 font-medium">Tier 2</span> — Players 6–16 · pick 2</li>
+                    <li><span class="text-gray-400 font-medium">Tier 3</span> — Players 17+ · pick 2</li>
+                </ul>
+                <p class="text-xs text-gray-500 mt-1">Ranked by DraftKings salary each week.</p>
+            </div>
+            <div class="border-l-2 border-blue-400 pl-8">
+                <h3 class="text-sm font-semibold text-blue-400 mb-1">Scoring</h3>
+                <p class="text-sm text-gray-300">Your team score is the sum of your 5 golfers' tournament scores. Lowest total wins.</p>
+            </div>
+            <div class="border-l-2 border-red-400 pl-8">
+                <h3 class="text-sm font-semibold text-red-400 mb-1">The Cut</h3>
+                <ul class="text-sm text-gray-300 space-y-1">
+                    <li><span class="text-green-400">Made cut</span> — Actual score used (capped at the cut line)</li>
+                    <li><span class="text-gray-400">Missed cut</span> — Score becomes cut line + 1 stroke</li>
+                </ul>
+            </div>
+            <div class="border-l-2 border-golf-gold-400 pl-8">
+                <h3 class="text-sm font-semibold text-golf-gold-400 mb-1">Prizes</h3>
+                <p class="text-sm text-gray-300">100% of the weekly pot goes to the winner.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Expand/Collapse Toggle -->
 {% if results %}
 <div class="flex justify-end mb-3">
@@ -206,6 +249,12 @@
 
 {% block scripts %}
 <script>
+    function toggleRules() {
+        const overlay = document.getElementById('rulesOverlay');
+        overlay.classList.toggle('hidden');
+        document.body.style.overflow = overlay.classList.contains('hidden') ? '' : 'hidden';
+    }
+
     let selectedPlayer = null;
 
     function toggleContent(card) {
