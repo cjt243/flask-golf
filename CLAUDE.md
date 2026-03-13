@@ -198,14 +198,12 @@ GitHub Actions runs pytest on push/PR to `main` (`.github/workflows/test.yml`). 
 
 ## Cut Line Modifier (Leaderboard Scoring)
 
-The `apply_cut_modifier()` helper adjusts golfer scores on the leaderboard based on whether they made or missed the cut. The `cut_line` value is stored as an integer in `tournament_metadata` (parsed from the API via `parse_score_to_int()`).
+The `apply_cut_modifier()` helper adjusts golfer scores on the leaderboard based on whether they made or missed the cut. The `cut_line` value is stored as an integer in `tournament_metadata` and matches the API's `cutScore` directly — the worst score that still makes the cut (e.g., `cut_line = 2` means +2 makes the cut).
 
-**API convention vs app convention:** The Golf API's `cutScore` = "the worst score that makes the cut" (e.g., "+2"). The app's `cut_line` = "the score assigned to missed-cut golfers" (one stroke worse). Relationship: `app_cut_line = API_cutScore + 1`. This conversion happens during golfer refresh. **Display convention:** The player standings template shows `cut_line - 1` (the actual cut line, i.e. the worst score that makes the cut), not the internal `cut_line` value.
-
-**Rules:**
-- **Missed cut** (`status == 'cut'`): score = `cut_line`. Example: cut is +1, golfer missed at +7 → score becomes +1.
-- **Made cut** (any other status): score = `min(actual_score, cut_line - 1)`. Example: cut is +1, golfer at +3 → score becomes 0 (cut_line - 1).
-- If a golfer makes the cut and finishes under the cap, their actual score is used (no adjustment).
+**Rules (given `cut_line = +2`):**
+- **Missed cut** (`status == 'cut'`): score = `cut_line + 1` (+3). The best score to miss the cut.
+- **Made cut, score worse than cut** (any other status): score = `min(actual_score, cut_line)` (+2). Capped at the cut line.
+- **Made cut, score better than cut**: actual score is used (no adjustment). E.g., -6 stays -6.
 
 **Applied in:** `compute_leaderboard()` (team scores), `compute_tournament_winners()` (winnings), leaderboard route `player_scores` dict, player standings route `TOTAL_SCORE_INTEGER`. Raw `total_score` in the `golfers` table is never modified.
 

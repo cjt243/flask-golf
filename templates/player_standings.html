@@ -66,7 +66,7 @@
                     <div class="flex items-center gap-4 text-xs text-gray-500">
                         <span id="filterCount">{{ results|length }} players</span>
                         {% if cut_line is not none %}
-                        <span>Cut: <span class="text-red-400 font-medium">{% if cut_line - 1 > 0 %}+{{ (cut_line - 1)|int }}{% elif cut_line - 1 < 0 %}{{ (cut_line - 1)|int }}{% else %}E{% endif %}</span></span>
+                        <span>Cut: <span class="text-red-400 font-medium">{% if cut_line > 0 %}+{{ cut_line|int }}{% elif cut_line < 0 %}{{ cut_line|int }}{% else %}E{% endif %}</span></span>
                         {% endif %}
                     </div>
                     <div class="inline-flex rounded-lg bg-gray-900/60 border border-gray-700 p-0.5" role="group">
