@@ -87,6 +87,8 @@ Golfers are assigned to 3 tiers based on DK salary ranking (higher salary = bett
 
 Once `picks_locked=True`, the full leaderboard renders normally.
 
+**Rules overlay**: A `?` button next to the tournament name opens a full-screen overlay explaining pick structure, tiers, scoring, cut line logic, and prizes. Pure client-side toggle (`toggleRules()`), no new route.
+
 **Choices.js styling**: `pick_form.html` includes a full CSS theme override in `<style>` block. Dropdowns use the app's gray-800/900 palette (not the library defaults or the old dark-green theme). Selected chips are green-600, hover highlights use a subtle `rgba(22, 163, 74, 0.15)` tint. The `maxItemText` config shows "All 2 picks made" instead of the default notice.
 
 **Helpers**: `_build_tier_lists(golfers)` extracts tier-sorting logic (shared by both new-entry and editing paths). `_render_pick_form()` accepts `editing=False` and `existing_entry=None` defaults.
