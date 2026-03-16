@@ -186,13 +186,13 @@ class TestMakePicksEditing:
         assert b'turbo:load' in resp.data
         assert b'DOMContentLoaded' not in resp.data
 
-    def test_make_picks_locked_shows_locked_state(self, app_instance, db, auth_client, seed_tournament):
+    def test_make_picks_locked_redirects_to_leaderboard(self, app_instance, db, auth_client, seed_tournament):
         db.execute("UPDATE tournaments SET picks_locked = 1 WHERE id = ?", [seed_tournament['id']])
         db.commit()
 
         resp = auth_client.get('/make_picks')
-        assert resp.status_code == 200
-        assert b'Picks Are Locked' in resp.data
+        assert resp.status_code == 302
+        assert '/' in resp.headers['Location']
 
 
 class TestLeaderboardPreTournament:

@@ -331,25 +331,8 @@
 
 {% block content %}
 
-{# ── State: Picks Locked ──────────────────────────────────────────────────── #}
-{% if picks_locked %}
-<div class="card-glow animate-fade-in bg-gray-800/80 rounded-xl border border-red-900/50 overflow-hidden">
-    <div class="px-8 py-14 text-center">
-        <div class="w-16 h-16 mx-auto mb-5 bg-red-950/60 border border-red-800/60 rounded-full flex items-center justify-center">
-            <svg class="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-            </svg>
-        </div>
-        <h2 class="font-display text-2xl text-white mb-3">Picks Are Locked</h2>
-        <p class="text-gray-400 mb-8 max-w-xs mx-auto">The tournament has started. No further picks can be submitted.</p>
-        <a href="/" class="inline-flex items-center gap-2 px-6 py-2.5 bg-golf-green-600 hover:bg-golf-green-700 text-white font-semibold rounded-lg transition-colors">
-            View Leaderboard
-        </a>
-    </div>
-</div>
-
 {# ── State: No Golfer Data ─────────────────────────────────────────────────── #}
-{% elif not first %}
+{% if not first %}
 <div class="card-glow animate-fade-in bg-gray-800/80 rounded-xl border border-gray-700/50 overflow-hidden">
     <div class="px-8 py-14 text-center">
         <div class="w-16 h-16 mx-auto mb-5 bg-gray-700/50 rounded-full flex items-center justify-center">

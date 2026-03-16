@@ -347,7 +347,11 @@ def load_user():
 @app.context_processor
 def inject_globals():
     """Inject global template variables."""
-    return {'season_year': datetime.now().year}
+    picks_open = False
+    tournament = get_active_tournament()
+    if tournament and not tournament['picks_locked']:
+        picks_open = True
+    return {'season_year': datetime.now().year, 'picks_open': picks_open}
 
 
 # =============================================================================
@@ -1729,8 +1733,8 @@ def _build_tier_lists(tournament_id):
 def _render_pick_form(**overrides):
     """Render pick_form.html with defaults for all template params."""
     ctx = dict(tournament_name='No Active Tournament', first=None, second=None,
-               third=None, picks_locked=True, already_submitted=False,
-               existing_entry=None, editing=False, is_fallback=True, user=g.user)
+               third=None, already_submitted=False,
+               existing_entry=None, editing=False, user=g.user)
     ctx.update(overrides)
     return render_template('pick_form.html', **ctx)
 
@@ -1741,11 +1745,8 @@ def make_picks():
     """Pick submission form."""
     tournament = get_active_tournament()
 
-    if not tournament:
-        return _render_pick_form()
-
-    if tournament['picks_locked']:
-        return _render_pick_form(tournament_name=tournament['name'], is_fallback=False)
+    if not tournament or tournament['picks_locked']:
+        return redirect(url_for('leaderboard'))
 
     # Check if user already submitted
     db = get_db()
@@ -1758,15 +1759,14 @@ def make_picks():
     golfers = get_golfers(tournament['id'])
 
     if not golfers:
-        return _render_pick_form(tournament_name=tournament['name'], picks_locked=False,
-                                 first=[], second=[], third=[], is_fallback=False)
+        return _render_pick_form(tournament_name=tournament['name'],
+                                 first=[], second=[], third=[])
 
     first, second, third = _build_tier_lists(tournament['id'])
 
     if existing:
         return _render_pick_form(tournament_name=tournament['name'], first=first,
-                                 second=second, third=third, picks_locked=False,
-                                 is_fallback=False, editing=True,
+                                 second=second, third=third, editing=True,
                                  existing_entry={
                                      'entry_name': existing[0],
                                      'golfer_1': existing[1],
@@ -1777,8 +1777,7 @@ def make_picks():
                                  })
 
     return _render_pick_form(tournament_name=tournament['name'], first=first,
-                             second=second, third=third, picks_locked=False,
-                             is_fallback=False)
+                             second=second, third=third)
 
 
 @app.route('/submit_picks', methods=['POST'])

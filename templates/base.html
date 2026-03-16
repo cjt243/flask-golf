@@ -33,9 +33,11 @@
                         <a href="/players" class="px-3 py-1.5 text-xs font-medium {{ 'text-white bg-golf-green-600' if active_tab == 'players' else 'text-gray-300 hover:text-white hover:bg-gray-700' }} rounded-md transition-colors">
                             Players
                         </a>
+                        {% if picks_open %}
                         <a href="/make_picks" class="px-3 py-1.5 text-xs font-medium {{ 'text-white bg-golf-green-600' if active_tab == 'picks' else 'text-gray-300 hover:text-white hover:bg-gray-700' }} rounded-md transition-colors">
                             Picks
                         </a>
+                        {% endif %}
                         {% if user and user.is_admin %}
                         <a href="/admin" class="px-3 py-1.5 text-xs font-medium {{ 'text-white bg-golf-green-600' if active_tab == 'admin' else 'text-gray-300 hover:text-white hover:bg-gray-700' }} rounded-md transition-colors">
                             Admin

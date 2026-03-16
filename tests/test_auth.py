@@ -71,9 +71,9 @@ class TestAuthenticatedAccess:
         resp = auth_client.get('/players')
         assert resp.status_code == 200
 
-    def test_authenticated_can_access_make_picks(self, auth_client):
+    def test_authenticated_make_picks_redirects_when_no_tournament(self, auth_client):
         resp = auth_client.get('/make_picks')
-        assert resp.status_code == 200
+        assert resp.status_code == 302
 
 
 # ── Session expiry ──────────────────────────────────────────────────────────
