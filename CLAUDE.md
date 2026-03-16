@@ -43,6 +43,8 @@ Flask Golf is a single-file Flask web app for a fantasy golf league ("80 Yard Bo
 | `/auth/submit-access-request` | CSRF | Submit access request |
 | `/submit-feedback` | Login+CSRF | Submit feedback from floating widget (JSON response) |
 | `/admin` + sub-routes | Admin | Tournament management, user approval, tiers, refresh schedule |
+
+**Admin dashboard** (`admin.html`) uses a tabbed layout: Tournaments, Schedule, Settings. Tab switching is client-side via `switchTab()`.
 | `/admin/feedback` | Admin | View/filter user feedback (open/resolved/all) |
 | `/admin/feedback/toggle` | Admin+CSRF | Toggle feedback resolved status |
 | `/admin/members` | Admin | Members list with per-season/lifetime winnings |
