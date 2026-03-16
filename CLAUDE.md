@@ -114,7 +114,17 @@ Team chip highlighting (`toggleTeamHighlight()` / `updateRowHighlighting()`) wor
 
 ### Season Standings
 
-`standings.html` uses a 3-tab layout (League / Tournament Stats / Selection Stats) for `/standings`. `compute_season_standings(season_year)` returns a 3-tuple: `(standings, selection_stats, tournament_results)`. Tier scores are per-tournament combined totals (not per-golfer). Tier best performances merge entries with identical golfer sets in the same tournament. Selection stats use "First L." display names, not entry names. Tier dot colors: `bg-golf-gold-400` (T1), `bg-blue-400` (T2), `bg-purple-400` (T3) — consistent with `player_standings.html`.
+`standings.html` uses a 4-tab layout (League / Tournament Stats / Selection Stats / Winner's Circle) for `/standings`. `compute_season_standings(season_year)` returns a 3-tuple: `(standings, selection_stats, tournament_results)`. Tier scores are per-tournament combined totals (not per-golfer). Tier best performances merge entries with identical golfer sets in the same tournament. Selection stats use "First L." display names, not entry names. Tier dot colors: `bg-golf-gold-400` (T1), `bg-blue-400` (T2), `bg-purple-400` (T3) — consistent with `player_standings.html`.
+
+**League tab extras**: "Podium Finishes" table (🥇🥈🥉💩) between standings and tier breakdown. Last place only counted when >1 entry.
+
+**Selection Stats extras**: "Mr. Relevant" — best unselected golfer per tournament (lowest score among golfers picked by 0 teams).
+
+**Winner's Circle tab**: Per-tournament winners with MVP (best individual golfer on winning team). Major tournaments marked with 🏆.
+
+**Major detection**: `MAJOR_KEYWORDS` constant and `_is_major(tournament_name)` helper. 🏆 badge appears next to names with major wins in standings. On the leaderboard (`/`), entries show 🏆 (major winner) or 🌟 (regular season winner) via `_get_season_winner_ids(season_year)` (cached, returns `{user_id: {wins, major_wins}}`).
+
+**Performance**: `compute_season_standings()` computes entry scores inline for placement ranking rather than calling `compute_leaderboard()` per tournament upfront — avoids duplicating DB queries. `compute_leaderboard()` is only called in the `tournament_results` loop where full pick details are needed. `compute_leaderboard()` results include `user_id` per entry (used by standings placement tracking and leaderboard winner badges).
 
 ### Caching
 
@@ -155,7 +165,7 @@ export PATH="$HOME/.local/share/fnm:$PATH" && eval "$(fnm env)"
 - Security events logged to `security_events` table
 - Templates extend `base.html` — nav, footer, Tailwind config are shared. Use `{% set show_nav = true %}` and `{% set active_tab = '...' %}` for authenticated pages
 - `templates/macros.html` provides `form_button()` (admin action forms) and `empty_state()` (no-data cards) macros — import with `{% from "macros.html" import form_button, empty_state %}`
-- Shared helpers reduce duplication: `format_last_updated()`, `clear_tournament_cache()`, `get_tournament_external_info()`, `compute_tier()` with `TIER_BOUNDARIES` constant, `_build_tier_lists(tournament_id)`, `_render_pick_form()`, `compute_tournament_winners(tournament_id)`
+- Shared helpers reduce duplication: `format_last_updated()`, `clear_tournament_cache()`, `get_tournament_external_info()`, `compute_tier()` with `TIER_BOUNDARIES` constant, `_build_tier_lists(tournament_id)`, `_render_pick_form()`, `compute_tournament_winners(tournament_id)`, `_is_major(tournament_name)` with `MAJOR_KEYWORDS`, `_get_season_winner_ids(season_year)`
 - Rate limiting uses `INSERT ... ON CONFLICT DO UPDATE` upsert pattern
 - Token verification logic lives in `_verify_magic_token()`, API schedule parsing in `_parse_api_schedule()`, player name extraction in `_extract_player_name()`
 - Session cleanup is probabilistic (~1% of authenticated requests)
