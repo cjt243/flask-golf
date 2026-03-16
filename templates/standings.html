@@ -23,21 +23,21 @@
 
 <!-- Tabs -->
 <div class="mb-5 border-b border-gray-700">
-    <nav class="flex space-x-1 -mb-px">
+    <nav class="flex space-x-1 -mb-px overflow-x-auto">
         <button onclick="switchTab('standings')" id="tab-standings"
-            class="standings-tab px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 border-green-500 text-white bg-gray-800/50">
+            class="standings-tab whitespace-nowrap px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 border-green-500 text-white bg-gray-800/50">
             League
         </button>
         <button onclick="switchTab('tournaments')" id="tab-tournaments"
-            class="standings-tab px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 border-transparent text-gray-400 hover:text-gray-200">
+            class="standings-tab whitespace-nowrap px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 border-transparent text-gray-400 hover:text-gray-200">
             Tournament Stats
         </button>
         <button onclick="switchTab('stats')" id="tab-stats"
-            class="standings-tab px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 border-transparent text-gray-400 hover:text-gray-200">
+            class="standings-tab whitespace-nowrap px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 border-transparent text-gray-400 hover:text-gray-200">
             Selection Stats
         </button>
         <button onclick="switchTab('winners')" id="tab-winners"
-            class="standings-tab px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 border-transparent text-gray-400 hover:text-gray-200">
+            class="standings-tab whitespace-nowrap px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 border-transparent text-gray-400 hover:text-gray-200">
             Winner's Circle
         </button>
     </nav>
@@ -304,7 +304,7 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="bg-gray-800 text-gray-300 text-left">
-                        <th class="px-3 py-2 font-medium">Golfer</th>
+                        <th class="px-3 py-2 font-medium sticky left-0 z-10 bg-gray-800">Golfer</th>
                         <th class="px-3 py-2 font-medium text-center">Picked</th>
                         <th class="px-3 py-2 font-medium">By Teams</th>
                         <th class="px-3 py-2 font-medium text-right">Avg Score</th>
@@ -313,7 +313,7 @@
                 <tbody class="divide-y divide-gray-700/50">
                     {% for g in selection_stats.most_picked[:20] %}
                     <tr class="hover:bg-gray-800/40 transition-colors">
-                        <td class="px-3 py-2 text-white font-medium whitespace-nowrap">{{ g.golfer }}</td>
+                        <td class="px-3 py-2 text-white font-medium whitespace-nowrap sticky left-0 z-10 bg-gray-900">{{ g.golfer }}</td>
                         <td class="px-3 py-2 text-center text-golf-gold-400 font-semibold">{{ g.count }}</td>
                         <td class="px-3 py-2 text-gray-300">
                             {% for team in g.teams %}
@@ -344,7 +344,7 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="bg-gray-800 text-gray-300 text-left">
-                        <th class="px-3 py-2 font-medium text-right">Score</th>
+                        <th class="px-3 py-2 font-medium text-right sticky left-0 z-10 bg-gray-800">Score</th>
                         <th class="px-3 py-2 font-medium">Team</th>
                         <th class="px-3 py-2 font-medium">Player(s)</th>
                         <th class="px-3 py-2 font-medium">Tournament</th>
@@ -353,7 +353,7 @@
                 <tbody class="divide-y divide-gray-700/50">
                     {% for p in selection_stats.tier_best[tier] %}
                     <tr class="hover:bg-gray-800/40 transition-colors">
-                        <td class="px-3 py-2 text-right font-semibold {{ 'text-green-400' if p.score < 0 else 'text-red-400' if p.score > 0 else 'text-gray-300' }}">
+                        <td class="px-3 py-2 text-right font-semibold sticky left-0 z-10 bg-gray-900 {{ 'text-green-400' if p.score < 0 else 'text-red-400' if p.score > 0 else 'text-gray-300' }}">
                             {% if p.score > 0 %}+{% elif p.score == 0 %}E{% endif %}{% if p.score != 0 %}{{ p.score }}{% endif %}
                         </td>
                         <td class="px-3 py-2 text-gray-300">
@@ -361,8 +361,8 @@
                             <span class="inline-block px-1.5 py-0.5 text-xs bg-gray-700 rounded mr-1 mb-0.5">{{ team }}</span>
                             {% endfor %}
                         </td>
-                        <td class="px-3 py-2 text-gray-300 whitespace-nowrap">{{ p.golfers | join(', ') }}</td>
-                        <td class="px-3 py-2 text-gray-400 whitespace-nowrap">{{ p.tournament }}</td>
+                        <td class="px-3 py-2 text-gray-300">{{ p.golfers | join(', ') }}</td>
+                        <td class="px-3 py-2 text-gray-400">{{ p.tournament }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -385,7 +385,7 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="bg-gray-800 text-gray-300 text-left">
-                        <th class="px-3 py-2 font-medium">Tournament</th>
+                        <th class="px-3 py-2 font-medium sticky left-0 z-10 bg-gray-800">Tournament</th>
                         <th class="px-3 py-2 font-medium">Golfer</th>
                         <th class="px-3 py-2 font-medium text-center">Finish</th>
                         <th class="px-3 py-2 font-medium text-right">Score</th>
@@ -394,8 +394,8 @@
                 <tbody class="divide-y divide-gray-700/50">
                     {% for m in selection_stats.mr_relevant|reverse %}
                     <tr class="hover:bg-gray-800/40 transition-colors">
-                        <td class="px-3 py-2 text-gray-400 whitespace-nowrap">{{ m.tournament }}</td>
-                        <td class="px-3 py-2 text-white font-medium whitespace-nowrap">{{ m.golfer }}</td>
+                        <td class="px-3 py-2 text-gray-400 sticky left-0 z-10 bg-gray-900">{{ m.tournament }}</td>
+                        <td class="px-3 py-2 text-white font-medium">{{ m.golfer }}</td>
                         <td class="px-3 py-2 text-center text-gray-300">{{ m.position }}</td>
                         <td class="px-3 py-2 text-right font-semibold {{ 'text-green-400' if m.score < 0 else 'text-red-400' if m.score > 0 else 'text-gray-300' }}">
                             {% if m.score > 0 %}+{% elif m.score == 0 %}E{% endif %}{% if m.score != 0 %}{{ m.score }}{% endif %}
@@ -417,7 +417,32 @@
     {% if has_winners %}
     <section class="mb-8">
         <h2 class="text-lg font-semibold text-white mb-3">Winner's Circle</h2>
-        <div class="overflow-x-auto rounded-lg border border-gray-700">
+
+        <!-- Mobile cards -->
+        <div class="sm:hidden space-y-2">
+            {% for t in tournament_results|reverse %}
+            {% for w in t.winners_detail %}
+            <div class="bg-gray-800/60 rounded-lg p-3">
+                <div class="text-xs text-gray-400 mb-1.5">{% if t.is_major %}🏆 {% endif %}{{ t.name }}</div>
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-golf-gold-400 font-semibold text-sm">{{ w.owner_name }}</span>
+                    <span class="font-semibold text-sm {{ 'text-green-400' if w.team_score < 0 else 'text-red-400' if w.team_score > 0 else 'text-gray-300' }}">
+                        {% if w.team_score > 0 %}+{% elif w.team_score == 0 %}E{% endif %}{% if w.team_score != 0 %}{{ w.team_score }}{% endif %}
+                    </span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-400 text-xs">MVP: <span class="text-gray-300">{{ w.mvp_name }}</span></span>
+                    <span class="font-semibold text-xs {{ 'text-green-400' if w.mvp_score < 0 else 'text-red-400' if w.mvp_score > 0 else 'text-gray-300' }}">
+                        {% if w.mvp_score > 0 %}+{% elif w.mvp_score == 0 %}E{% endif %}{% if w.mvp_score != 0 %}{{ w.mvp_score }}{% endif %}
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+            {% endfor %}
+        </div>
+
+        <!-- Desktop table -->
+        <div class="hidden sm:block overflow-x-auto rounded-lg border border-gray-700">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="bg-gray-800 text-gray-300 text-left">
