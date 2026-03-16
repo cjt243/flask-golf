@@ -417,7 +417,32 @@
     {% if has_winners %}
     <section class="mb-8">
         <h2 class="text-lg font-semibold text-white mb-3">Winner's Circle</h2>
-        <div class="overflow-x-auto rounded-lg border border-gray-700">
+
+        <!-- Mobile cards -->
+        <div class="sm:hidden space-y-2">
+            {% for t in tournament_results|reverse %}
+            {% for w in t.winners_detail %}
+            <div class="bg-gray-800/60 rounded-lg p-3">
+                <div class="text-xs text-gray-400 mb-1.5">{% if t.is_major %}🏆 {% endif %}{{ t.name }}</div>
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-golf-gold-400 font-semibold text-sm">{{ w.owner_name }}</span>
+                    <span class="font-semibold text-sm {{ 'text-green-400' if w.team_score < 0 else 'text-red-400' if w.team_score > 0 else 'text-gray-300' }}">
+                        {% if w.team_score > 0 %}+{% elif w.team_score == 0 %}E{% endif %}{% if w.team_score != 0 %}{{ w.team_score }}{% endif %}
+                    </span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-400 text-xs">MVP: <span class="text-gray-300">{{ w.mvp_name }}</span></span>
+                    <span class="font-semibold text-xs {{ 'text-green-400' if w.mvp_score < 0 else 'text-red-400' if w.mvp_score > 0 else 'text-gray-300' }}">
+                        {% if w.mvp_score > 0 %}+{% elif w.mvp_score == 0 %}E{% endif %}{% if w.mvp_score != 0 %}{{ w.mvp_score }}{% endif %}
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+            {% endfor %}
+        </div>
+
+        <!-- Desktop table -->
+        <div class="hidden sm:block overflow-x-auto rounded-lg border border-gray-700">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="bg-gray-800 text-gray-300 text-left">
