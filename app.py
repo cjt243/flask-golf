@@ -223,6 +223,10 @@ def clear_tournament_cache(tournament_id=None):
     if tournament_id:
         _cache.pop(f'leaderboard_{tournament_id}', None)
         _cache.pop(f'players_{tournament_id}', None)
+        # Season standings depend on all tournaments
+        for key in list(_cache):
+            if key.startswith('standings_'):
+                _cache.pop(key, None)
     else:
         _cache.clear()
 
@@ -939,6 +943,221 @@ def compute_player_standings(tournament_id):
         golfer['selections'] = ', '.join(selections.get(golfer['name'], []))
 
     return golfers
+
+
+def compute_season_standings(season_year):
+    """Compute season-long standings, tier breakdowns, and selection stats.
+
+    Returns (standings_list, selection_stats) where:
+    - standings_list: per-user stats sorted by profit DESC, wins DESC
+    - selection_stats: {'most_picked': [...], 'tier_best': {1: [...], 2: [...], 3: [...]}}
+    """
+    db = get_db()
+    tournaments = db.execute(
+        "SELECT id, name FROM tournaments WHERE season_year = ? AND picks_locked = 1",
+        [season_year]
+    ).fetchall()
+
+    if not tournaments:
+        return [], {'most_picked': [], 'tier_best': {1: [], 2: [], 3: []}}, []
+
+    tier_map = {
+        'golfer_1': 1,
+        'golfer_2': 2, 'golfer_3': 2,
+        'golfer_4': 3, 'golfer_5': 3,
+    }
+
+    # Per-user accumulators
+    users = {}  # user_id -> stats dict
+    # Selection stats accumulators
+    golfer_picks = {}  # golfer_name -> {count, teams (set), scores (list)}
+    tier_best = {1: [], 2: [], 3: []}  # tier -> [(golfer, score, team, tournament_name)]
+
+    for t_id, t_name in tournaments:
+        entries = get_entries(t_id)
+        if not entries:
+            continue
+        golfers = {g['name']: g for g in get_golfers(t_id)}
+        metadata = get_tournament_metadata(t_id)
+        cut_line = metadata.get('cut_line') if metadata else None
+        result = compute_tournament_winners(t_id)
+        winners = result['winners'] if result else []
+        per_winner = result['per_winner'] if result else 0
+
+        for entry in entries:
+            uid = entry['user_id']
+            if uid not in users:
+                users[uid] = {
+                    'user_id': uid,
+                    'first_name': entry['first_name'],
+                    'last_name': entry['last_name'],
+                    'wins': 0,
+                    'tournaments_played': 0,
+                    'total_winnings': 0.0,
+                    'team_scores': [],
+                    'tier_scores': {1: [], 2: [], 3: []},
+                    'tier_positions': {1: [], 2: [], 3: []},
+                    'cuts_made': 0,
+                    'cuts_missed': 0,
+                }
+
+            u = users[uid]
+            u['tournaments_played'] += 1
+            if uid in winners:
+                u['wins'] += 1
+                u['total_winnings'] += per_winner
+
+            # Score this entry
+            team_total = 0
+            entry_tier_totals = {1: 0, 2: 0, 3: 0}
+            entry_tier_has_scores = {1: False, 2: False, 3: False}
+            entry_tier_golfers = {1: [], 2: [], 3: []}
+            for col, tier in tier_map.items():
+                golfer_name = entry[col]
+                golfer = golfers.get(golfer_name)
+
+                if golfer is None:
+                    score = 999
+                elif golfer.get('total_score') is None:
+                    score = 0
+                else:
+                    score = apply_cut_modifier(golfer['total_score'], golfer.get('status'), cut_line)
+
+                team_total += score
+                entry_tier_totals[tier] += score
+                if golfer and golfer.get('total_score') is not None:
+                    entry_tier_has_scores[tier] = True
+                if golfer_name:
+                    entry_tier_golfers[tier].append(golfer_name)
+
+                # Track positions (only for made-cut golfers)
+                if golfer and golfer.get('status') != 'cut' and golfer.get('position'):
+                    try:
+                        pos = int(str(golfer['position']).lstrip('T'))
+                        u['tier_positions'][tier].append(pos)
+                    except (ValueError, TypeError):
+                        pass
+
+                # Track cuts
+                if golfer:
+                    if golfer.get('status') == 'cut':
+                        u['cuts_missed'] += 1
+                    else:
+                        u['cuts_made'] += 1
+
+                # Selection stats
+                if golfer_name:
+                    if golfer_name not in golfer_picks:
+                        golfer_picks[golfer_name] = {'count': 0, 'teams': set(), 'scores': []}
+                    golfer_picks[golfer_name]['count'] += 1
+                    display_name = f"{entry['first_name']} {entry['last_name'][0]}."
+                    golfer_picks[golfer_name]['teams'].add(display_name)
+                    if golfer and golfer.get('total_score') is not None:
+                        adj_score = apply_cut_modifier(golfer['total_score'], golfer.get('status'), cut_line)
+                        golfer_picks[golfer_name]['scores'].append(adj_score)
+
+            # Accumulate per-tournament tier totals and tier best
+            for tier in (1, 2, 3):
+                u['tier_scores'][tier].append(entry_tier_totals[tier])
+                if entry_tier_has_scores[tier]:
+                    # Merge entries with same golfers in same tournament
+                    golfer_key = tuple(sorted(entry_tier_golfers[tier]))
+                    merge_key = (golfer_key, t_name)
+                    merged = False
+                    display_name = f"{entry['first_name']} {entry['last_name'][0]}."
+                    for existing in tier_best[tier]:
+                        if existing.get('_merge_key') == merge_key:
+                            existing['teams'].append(display_name)
+                            merged = True
+                            break
+                    if not merged:
+                        tier_best[tier].append({
+                            'score': entry_tier_totals[tier],
+                            'teams': [display_name],
+                            'golfers': list(entry_tier_golfers[tier]),
+                            'tournament': t_name,
+                            '_merge_key': merge_key,
+                        })
+
+            u['team_scores'].append(team_total)
+
+    # Build standings list
+    standings = []
+    for u in users.values():
+        played = u['tournaments_played']
+        total_score = sum(u['team_scores'])
+        avg_score = round(total_score / played, 1) if played else 0
+        profit = round(u['total_winnings'] - (played * 5), 2)
+
+        tier_avg_pos = {}
+        tier_avg_score = {}
+        for tier in (1, 2, 3):
+            positions = u['tier_positions'][tier]
+            tier_avg_pos[tier] = round(sum(positions) / len(positions), 1) if positions else None
+            scores = u['tier_scores'][tier]
+            tier_avg_score[tier] = round(sum(scores) / len(scores), 1) if scores else None
+
+        total_picks = u['cuts_made'] + u['cuts_missed']
+        cut_pct = round(u['cuts_made'] / total_picks * 100, 1) if total_picks else 0
+
+        standings.append({
+            'first_name': u['first_name'],
+            'last_name': u['last_name'],
+            'wins': u['wins'],
+            'tournaments_played': played,
+            'total_winnings': u['total_winnings'],
+            'profit': profit,
+            'avg_score': avg_score,
+            'cumulative_score': total_score,
+            'tier_avg_pos': tier_avg_pos,
+            'tier_avg_score': tier_avg_score,
+            'cuts_made': u['cuts_made'],
+            'cuts_missed': u['cuts_missed'],
+            'cut_pct': cut_pct,
+        })
+
+    standings.sort(key=lambda x: (-x['wins'], -x['profit'], x['avg_score'], x['cumulative_score']))
+
+    # Build selection stats
+    most_picked = []
+    for name, data in golfer_picks.items():
+        avg = round(sum(data['scores']) / len(data['scores']), 1) if data['scores'] else None
+        most_picked.append({
+            'golfer': name,
+            'count': data['count'],
+            'teams': sorted(data['teams']),
+            'avg_score': avg,
+        })
+    most_picked.sort(key=lambda x: -x['count'])
+
+    for tier in (1, 2, 3):
+        tier_best[tier].sort(key=lambda x: x['score'])
+        tier_best[tier] = tier_best[tier][:5]
+        for entry in tier_best[tier]:
+            entry.pop('_merge_key', None)
+
+    selection_stats = {'most_picked': most_picked, 'tier_best': tier_best}
+
+    # Build per-tournament results
+    tournament_results = []
+    for t_id, t_name in tournaments:
+        leaderboard, metadata = compute_leaderboard(t_id)
+        result = compute_tournament_winners(t_id)
+        winners = result['winners'] if result else []
+        pot = result['pot'] if result else 0
+        per_winner = result['per_winner'] if result else 0
+        tournament_results.append({
+            'id': t_id,
+            'name': t_name,
+            'leaderboard': leaderboard,
+            'cut_line': metadata.get('cut_line') if metadata else None,
+            'pot': pot,
+            'per_winner': per_winner,
+            'num_entries': len(leaderboard),
+            'winner_names': [e['owner_name'] for e in leaderboard if e.get('rank') == 1],
+        })
+
+    return standings, selection_stats, tournament_results
 
 
 # =============================================================================
@@ -1706,6 +1925,26 @@ def player_standings():
                          is_fallback=False,
                          picks_locked=True,
                          all_teams=sorted(all_teams),
+                         user=g.user)
+
+
+@app.route('/standings')
+@login_required
+def season_standings():
+    """Season standings and stats page."""
+    season_year = datetime.now().year
+    cache_key = f'standings_{season_year}'
+    cached = get_cached(cache_key)
+    if cached:
+        standings, selection_stats, tournament_results = cached
+    else:
+        standings, selection_stats, tournament_results = compute_season_standings(season_year)
+        set_cache(cache_key, (standings, selection_stats, tournament_results))
+    return render_template('standings.html',
+                         standings=standings,
+                         selection_stats=selection_stats,
+                         tournament_results=tournament_results,
+                         season_year=season_year,
                          user=g.user)
 
 

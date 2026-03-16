@@ -14,14 +14,14 @@ Flask Golf is a single-file Flask web app for a fantasy golf league ("80 Yard Bo
 
 | File / Dir | Purpose |
 |------------|---------|
-| `app.py` | Entire application (~2600 lines) |
+| `app.py` | Entire application (~2700 lines) |
 | `schema.sql` | Database schema (Turso/libSQL) |
-| `templates/*.html` | 14 Jinja2 page templates — all extend `base.html`; `macros.html` has shared macros |
+| `templates/*.html` | 16 Jinja2 page templates — all extend `base.html`; `macros.html` has shared macros |
 | `templates/emails/*.html` | 3 email templates (magic_link, admin_notification, approval) |
 | `static/css/styles.css` | Tailwind CSS output (28KB minified) |
 | `static/src/input.css` | Tailwind CSS source |
 | `tailwind.config.js` | Tailwind build config with custom golf colors |
-| `tests/` | 97 pytest tests (auth, picks, leaderboard, admin, utils) |
+| `tests/` | 109 pytest tests (auth, picks, leaderboard, admin, utils, standings) |
 | `.github/workflows/` | CI (test.yml) + auto-refresh cron (auto-refresh.yml) |
 | `gunicorn_config.py` | Production server config (port 8080, 2 workers) |
 | `requirements.txt` | Pinned Python dependencies |
@@ -33,6 +33,7 @@ Flask Golf is a single-file Flask web app for a fantasy golf league ("80 Yard Bo
 |-------|------|---------|
 | `/` | Login | Leaderboard (hidden until picks locked; shows pre-tournament state) |
 | `/players` | Login | Player standings |
+| `/standings` | Login | Season standings, tournament stats, selection stats (tabbed) |
 | `/make_picks` | Login | Pick submission/editing form |
 | `/submit_picks` | Login+CSRF | Insert or update pick submission |
 | `/auth/login` | Public | Magic link login |
@@ -110,6 +111,10 @@ Once `picks_locked=True`, the full leaderboard renders normally.
 **Template context**: `all_teams` (sorted unique team names) computed in `app.py` and passed to template for the filter dropdown.
 
 Team chip highlighting (`toggleTeamHighlight()` / `updateRowHighlighting()`) works across both layouts — mobile cards use a `data-team-names` attribute for matching.
+
+### Season Standings
+
+`standings.html` uses a 3-tab layout (League / Tournament Stats / Selection Stats) for `/standings`. `compute_season_standings(season_year)` returns a 3-tuple: `(standings, selection_stats, tournament_results)`. Tier scores are per-tournament combined totals (not per-golfer). Tier best performances merge entries with identical golfer sets in the same tournament. Selection stats use "First L." display names, not entry names. Tier dot colors: `bg-golf-gold-400` (T1), `bg-blue-400` (T2), `bg-purple-400` (T3) — consistent with `player_standings.html`.
 
 ### Caching
 
