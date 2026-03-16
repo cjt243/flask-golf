@@ -69,6 +69,13 @@ ADMIN_EMAILS = os.getenv('ADMIN_EMAILS', '').split(',')
 
 # Tier boundaries: (threshold, tier) — index < threshold → tier
 TIER_BOUNDARIES = [(5, 1), (16, 2)]
+MAJOR_KEYWORDS = ['masters', 'pga championship', 'u.s. open', 'open championship', 'the open']
+
+
+def _is_major(tournament_name):
+    """Check if a tournament is a major based on name keywords."""
+    name_lower = tournament_name.lower()
+    return any(kw in name_lower for kw in MAJOR_KEYWORDS)
 
 # Rate limiting configuration
 RATE_LIMITS = {
@@ -868,6 +875,7 @@ def compute_leaderboard(tournament_id):
         results.append({
             'entry_name': entry['entry_name'],
             'owner_name': owner_name,
+            'user_id': entry['user_id'],
             'team_score': total_score,
             'picks': pick_details,
             'picks_str': ', '.join(picks)
@@ -973,6 +981,12 @@ def compute_season_standings(season_year):
     golfer_picks = {}  # golfer_name -> {count, teams (set), scores (list)}
     tier_best = {1: [], 2: [], 3: []}  # tier -> [(golfer, score, team, tournament_name)]
 
+    # Track per-tournament entry scores for placement ranking (built during main loop)
+    tournament_entry_scores = {}  # t_id -> [(user_id, total_score)]
+    # Track per-tournament data for "Mr. Relevant" (best unselected golfer)
+    tournament_selected = {}  # t_id -> set of selected golfer names
+    tournament_golfer_data = {}  # t_id -> (golfers_dict, cut_line, t_name)
+
     for t_id, t_name in tournaments:
         entries = get_entries(t_id)
         if not entries:
@@ -983,6 +997,45 @@ def compute_season_standings(season_year):
         result = compute_tournament_winners(t_id)
         winners = result['winners'] if result else []
         per_winner = result['per_winner'] if result else 0
+        is_major = _is_major(t_name)
+
+        # Track selected golfers for Mr. Relevant
+        selected_names = set()
+        for entry in entries:
+            for col in ('golfer_1', 'golfer_2', 'golfer_3', 'golfer_4', 'golfer_5'):
+                if entry[col]:
+                    selected_names.add(entry[col])
+        tournament_selected[t_id] = selected_names
+        tournament_golfer_data[t_id] = (golfers, cut_line, t_name)
+
+        # Score all entries first to build rank map (avoids extra compute_leaderboard call)
+        entry_scores = []
+        for entry in entries:
+            total = 0
+            for col in ('golfer_1', 'golfer_2', 'golfer_3', 'golfer_4', 'golfer_5'):
+                golfer = golfers.get(entry[col])
+                if golfer is None:
+                    total += 999
+                elif golfer.get('total_score') is None:
+                    total += 0
+                else:
+                    total += apply_cut_modifier(golfer['total_score'], golfer.get('status'), cut_line)
+            entry_scores.append((entry['user_id'], total))
+        tournament_entry_scores[t_id] = entry_scores
+
+        # Build rank map from computed scores
+        entry_scores_sorted = sorted(entry_scores, key=lambda x: x[1])
+        rank_map = {}
+        max_rank = 0
+        current_rank = 1
+        for i, (uid, score) in enumerate(entry_scores_sorted):
+            if i > 0 and score == entry_scores_sorted[i-1][1]:
+                rank_map[uid] = rank_map[entry_scores_sorted[i-1][0]]
+            else:
+                rank_map[uid] = current_rank
+            if current_rank > max_rank:
+                max_rank = current_rank
+            current_rank += 1
 
         for entry in entries:
             uid = entry['user_id']
@@ -992,6 +1045,10 @@ def compute_season_standings(season_year):
                     'first_name': entry['first_name'],
                     'last_name': entry['last_name'],
                     'wins': 0,
+                    'major_wins': 0,
+                    'second_place': 0,
+                    'third_place': 0,
+                    'last_place': 0,
                     'tournaments_played': 0,
                     'total_winnings': 0.0,
                     'team_scores': [],
@@ -1006,6 +1063,18 @@ def compute_season_standings(season_year):
             if uid in winners:
                 u['wins'] += 1
                 u['total_winnings'] += per_winner
+                if is_major:
+                    u['major_wins'] += 1
+
+            # Placement tracking
+            entry_rank = rank_map.get(uid)
+            if entry_rank is not None:
+                if entry_rank == 2:
+                    u['second_place'] += 1
+                elif entry_rank == 3:
+                    u['third_place'] += 1
+                if entry_rank == max_rank and len(entries) > 1:
+                    u['last_place'] += 1
 
             # Score this entry
             team_total = 0
@@ -1104,6 +1173,10 @@ def compute_season_standings(season_year):
             'first_name': u['first_name'],
             'last_name': u['last_name'],
             'wins': u['wins'],
+            'major_wins': u['major_wins'],
+            'second_place': u['second_place'],
+            'third_place': u['third_place'],
+            'last_place': u['last_place'],
             'tournaments_played': played,
             'total_winnings': u['total_winnings'],
             'profit': profit,
@@ -1136,28 +1209,96 @@ def compute_season_standings(season_year):
         for entry in tier_best[tier]:
             entry.pop('_merge_key', None)
 
-    selection_stats = {'most_picked': most_picked, 'tier_best': tier_best}
+    # Build "Mr. Relevant" — best unselected golfer per tournament
+    mr_relevant = []
+    for t_id, t_name in tournaments:
+        if t_id not in tournament_golfer_data:
+            continue
+        golfers_dict, cut_line, _ = tournament_golfer_data[t_id]
+        selected = tournament_selected[t_id]
+        best = None
+        for name, g in golfers_dict.items():
+            if name in selected:
+                continue
+            if g.get('total_score') is None:
+                continue
+            adj_score = apply_cut_modifier(g['total_score'], g.get('status'), cut_line)
+            if best is None or adj_score < best['score']:
+                best = {'golfer': name, 'score': adj_score, 'tournament': t_name,
+                        'status': g.get('status', ''), 'position': g.get('position', '--')}
+        if best:
+            mr_relevant.append(best)
+
+    selection_stats = {'most_picked': most_picked, 'tier_best': tier_best, 'mr_relevant': mr_relevant}
 
     # Build per-tournament results
     tournament_results = []
     for t_id, t_name in tournaments:
-        leaderboard, metadata = compute_leaderboard(t_id)
+        leaderboard, lb_metadata = compute_leaderboard(t_id)
         result = compute_tournament_winners(t_id)
         winners = result['winners'] if result else []
         pot = result['pot'] if result else 0
         per_winner = result['per_winner'] if result else 0
+
+        # Build winners_detail with MVP (best individual golfer on winning team)
+        winners_detail = []
+        for entry in leaderboard:
+            if entry.get('rank') == 1:
+                mvp = min(entry['picks'], key=lambda p: p['score'])
+                winners_detail.append({
+                    'owner_name': entry['owner_name'],
+                    'team_score': entry['team_score'],
+                    'mvp_name': mvp['name'],
+                    'mvp_score': mvp['score'],
+                })
+
         tournament_results.append({
             'id': t_id,
             'name': t_name,
+            'is_major': _is_major(t_name),
             'leaderboard': leaderboard,
-            'cut_line': metadata.get('cut_line') if metadata else None,
+            'cut_line': lb_metadata.get('cut_line') if lb_metadata else None,
             'pot': pot,
             'per_winner': per_winner,
             'num_entries': len(leaderboard),
             'winner_names': [e['owner_name'] for e in leaderboard if e.get('rank') == 1],
+            'winners_detail': winners_detail,
         })
 
     return standings, selection_stats, tournament_results
+
+
+def _get_season_winner_ids(season_year):
+    """Get season winner info: {user_id: {'wins': int, 'major_wins': int}}.
+
+    Cached with 5-minute TTL.
+    """
+    cache_key = f'season_winners_{season_year}'
+    cached = get_cached(cache_key)
+    if cached:
+        return cached
+
+    db = get_db()
+    tournaments = db.execute(
+        "SELECT id, name FROM tournaments WHERE season_year = ? AND picks_locked = 1",
+        [season_year]
+    ).fetchall()
+
+    winner_info = {}  # user_id -> {'wins': int, 'major_wins': int}
+    for t_id, t_name in tournaments:
+        result = compute_tournament_winners(t_id)
+        if not result:
+            continue
+        is_major = _is_major(t_name)
+        for uid in result['winners']:
+            if uid not in winner_info:
+                winner_info[uid] = {'wins': 0, 'major_wins': 0}
+            winner_info[uid]['wins'] += 1
+            if is_major:
+                winner_info[uid]['major_wins'] += 1
+
+    set_cache(cache_key, winner_info)
+    return winner_info
 
 
 # =============================================================================
@@ -1811,16 +1952,24 @@ def leaderboard():
             'status': g_data['status']
         }
 
+    # Get season winner info for badges
+    season_year = datetime.now().year
+    season_winners = _get_season_winner_ids(season_year)
+
     # Format results for template
     template_results = []
     for r in results:
+        user_id = r.get('user_id')
+        winner_data = season_winners.get(user_id, {})
         template_results.append({
             'RANK': r['rank'],
             'ENTRY_NAME': r['entry_name'],
             'OWNER_NAME': r.get('owner_name', ''),
             'TEAM_SCORE': r['team_score'],
             'PICKS': r['picks_str'],
-            'TOURNAMENT': tournament['name']
+            'TOURNAMENT': tournament['name'],
+            'HAS_WIN': winner_data.get('wins', 0) > 0,
+            'HAS_MAJOR': winner_data.get('major_wins', 0) > 0,
         })
 
     return render_template('leaderboard.html',
