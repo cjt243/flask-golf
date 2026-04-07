@@ -82,6 +82,17 @@
                                     {% endfor %}
                                 </select>
                             </form>
+                            <form action="/admin/update-buy-in" method="POST" class="inline-flex items-center gap-1">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="tournament_id" value="{{ t.id }}">
+                                <label class="text-xs text-gray-500">Buy-in:</label>
+                                <select name="buy_in" onchange="this.form.submit()"
+                                    class="px-1.5 py-0.5 text-xs bg-gray-700 border border-gray-600 rounded text-white cursor-pointer">
+                                    {% for amount in [5, 10] %}
+                                    <option value="{{ amount }}" {% if t.buy_in == amount %}selected{% endif %}>${{ amount }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
                         </div>
                         <div class="flex items-center justify-between">
                             <!-- Primary actions -->

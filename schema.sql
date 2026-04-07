@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS tournaments (
     is_active INTEGER DEFAULT 0,
     picks_locked INTEGER DEFAULT 0,
     refresh_interval_minutes INTEGER DEFAULT 60,
+    buy_in INTEGER DEFAULT 5,
     created_at TEXT DEFAULT (datetime('now'))
 );
 

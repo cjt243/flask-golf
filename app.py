@@ -164,6 +164,7 @@ def _run_migrations(db):
         ("ALTER TABLE golfers ADD COLUMN tier_override INTEGER", "golfers.tier_override"),
         ("ALTER TABLE golfers ADD COLUMN dk_salary INTEGER", "golfers.dk_salary"),
         ("ALTER TABLE tournaments ADD COLUMN refresh_interval_minutes INTEGER DEFAULT 60", "tournaments.refresh_interval_minutes"),
+        ("ALTER TABLE tournaments ADD COLUMN buy_in INTEGER DEFAULT 5", "tournaments.buy_in"),
     ]
     for sql, description in migrations:
         try:
@@ -739,7 +740,7 @@ def get_active_tournament():
     """Get the currently active tournament."""
     db = get_db()
     result = db.execute("""
-        SELECT id, external_id, name, season_year, is_active, picks_locked
+        SELECT id, external_id, name, season_year, is_active, picks_locked, buy_in
         FROM tournaments WHERE is_active = 1 LIMIT 1
     """).fetchone()
 
@@ -750,7 +751,8 @@ def get_active_tournament():
             'name': result[2],
             'season_year': result[3],
             'is_active': bool(result[4]),
-            'picks_locked': bool(result[5])
+            'picks_locked': bool(result[5]),
+            'buy_in': result[6] or 5
         }
     return None
 
@@ -899,17 +901,23 @@ def compute_leaderboard(tournament_id):
 def compute_tournament_winners(tournament_id):
     """Compute winners and pot for a completed tournament.
 
-    Returns {'winners': [user_ids], 'pot': int, 'per_winner': float}
+    Returns {'winners': [user_ids], 'pot': int, 'per_winner': float, 'buy_in': int}
     or None if no entries.
     """
     entries = get_entries(tournament_id)
     if not entries:
         return None
 
+    db = get_db()
+    buy_in_row = db.execute(
+        "SELECT buy_in FROM tournaments WHERE id = ?", [tournament_id]
+    ).fetchone()
+    buy_in = (buy_in_row[0] if buy_in_row and buy_in_row[0] else 5)
+
     golfers = {g['name']: g for g in get_golfers(tournament_id)}
     metadata = get_tournament_metadata(tournament_id)
     cut_line = metadata.get('cut_line') if metadata else None
-    pot = len(entries) * 5
+    pot = len(entries) * buy_in
 
     # Score each entry
     scores = []
@@ -930,7 +938,7 @@ def compute_tournament_winners(tournament_id):
     winners = [s[0] for s in scores if s[1] == best]
     per_winner = round(pot / len(winners), 2)
 
-    return {'winners': winners, 'pot': pot, 'per_winner': per_winner}
+    return {'winners': winners, 'pot': pot, 'per_winner': per_winner, 'buy_in': buy_in}
 
 
 def compute_player_standings(tournament_id):
@@ -998,6 +1006,7 @@ def compute_season_standings(season_year):
         result = compute_tournament_winners(t_id)
         winners = result['winners'] if result else []
         per_winner = result['per_winner'] if result else 0
+        tournament_buy_in = result['buy_in'] if result else 5
         is_major = _is_major(t_name)
 
         # Track selected golfers for Mr. Relevant
@@ -1051,6 +1060,7 @@ def compute_season_standings(season_year):
                     'third_place': 0,
                     'last_place': 0,
                     'tournaments_played': 0,
+                    'total_buy_ins': 0.0,
                     'total_winnings': 0.0,
                     'team_scores': [],
                     'tier_scores': {1: [], 2: [], 3: []},
@@ -1061,6 +1071,7 @@ def compute_season_standings(season_year):
 
             u = users[uid]
             u['tournaments_played'] += 1
+            u['total_buy_ins'] += tournament_buy_in
             if uid in winners:
                 u['wins'] += 1
                 u['total_winnings'] += per_winner
@@ -1157,7 +1168,7 @@ def compute_season_standings(season_year):
         played = u['tournaments_played']
         total_score = sum(u['team_scores'])
         avg_score = round(total_score / played, 1) if played else 0
-        profit = round(u['total_winnings'] - (played * 5), 2)
+        profit = round(u['total_winnings'] - u['total_buy_ins'], 2)
 
         tier_avg_pos = {}
         tier_avg_score = {}
@@ -1927,6 +1938,7 @@ def leaderboard():
                              picks_locked=False,
                              user_entry=user_entry,
                              is_fallback=False,
+                             buy_in=tournament.get('buy_in', 5),
                              user=g.user)
 
     cache_key = f'leaderboard_{tournament["id"]}'
@@ -1981,6 +1993,7 @@ def leaderboard():
                          player_scores=player_scores,
                          picks_locked=tournament.get('picks_locked', True),
                          is_fallback=False,
+                         buy_in=tournament.get('buy_in', 5),
                          user=g.user)
 
 
@@ -2289,7 +2302,7 @@ def admin_dashboard():
         SELECT t.id, t.external_id, t.name, t.season_year, t.is_active, t.picks_locked,
                (SELECT COUNT(*) FROM entries WHERE tournament_id = t.id) as entry_count,
                (SELECT COUNT(*) FROM golfers WHERE tournament_id = t.id) as golfer_count,
-               t.refresh_interval_minutes
+               t.refresh_interval_minutes, t.buy_in
         FROM tournaments t ORDER BY t.created_at DESC
     """).fetchall()
 
@@ -2302,7 +2315,8 @@ def admin_dashboard():
         'picks_locked': bool(t[5]),
         'entry_count': t[6],
         'golfer_count': t[7],
-        'refresh_interval_minutes': t[8] or 60
+        'refresh_interval_minutes': t[8] or 60,
+        'buy_in': t[9] or 5
     } for t in tournaments]
 
     # Load cached schedule from DB (fetched on demand via /admin/refresh-schedule)
@@ -2369,6 +2383,7 @@ def admin_create_tournament():
     name = request.form.get('name', '').strip()
     season_year = request.form.get('season_year', datetime.now().year)
     refresh_interval = int(request.form.get('refresh_interval_minutes', 60))
+    buy_in = int(request.form.get('buy_in', 5))
 
     if not external_id or not name:
         return redirect(url_for('admin_dashboard'))
@@ -2377,9 +2392,9 @@ def admin_create_tournament():
 
     try:
         db.execute("""
-            INSERT INTO tournaments (id, external_id, name, season_year, refresh_interval_minutes)
-            VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?)
-        """, [external_id, name, int(season_year), refresh_interval])
+            INSERT INTO tournaments (id, external_id, name, season_year, refresh_interval_minutes, buy_in)
+            VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?)
+        """, [external_id, name, int(season_year), refresh_interval, buy_in])
         db.commit()
     except Exception as e:
         logger.error(f"Error creating tournament: {e}")
@@ -2402,6 +2417,27 @@ def admin_update_refresh_interval():
     db.execute(
         "UPDATE tournaments SET refresh_interval_minutes = ? WHERE id = ?",
         [interval, tournament_id]
+    )
+    db.commit()
+
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/update-buy-in', methods=['POST'])
+@admin_required
+@csrf_required
+def admin_update_buy_in():
+    """Update the buy-in amount for a tournament."""
+    tournament_id = request.form.get('tournament_id')
+    buy_in = int(request.form.get('buy_in', 5))
+
+    if not tournament_id or buy_in not in (5, 10):
+        return redirect(url_for('admin_dashboard'))
+
+    db = get_db()
+    db.execute(
+        "UPDATE tournaments SET buy_in = ? WHERE id = ?",
+        [buy_in, tournament_id]
     )
     db.commit()
 
