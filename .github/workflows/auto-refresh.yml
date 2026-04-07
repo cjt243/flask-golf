@@ -2,10 +2,10 @@ name: Auto-refresh golfer scores
 
 on:
   schedule:
-    # Every hour. The app checks its own configurable schedule
-    # (admin panel > Refresh Schedule) and returns early if outside
-    # tournament hours — so this is safe to run 24/7.
-    - cron: '0 * * * *'
+    # Every 5 minutes. The app checks its own configurable schedule
+    # (admin panel > Refresh Schedule) and per-tournament refresh interval,
+    # returning early if outside tournament hours or too soon — safe to run 24/7.
+    - cron: '*/5 * * * *'
 
   workflow_dispatch: {}
 

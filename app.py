@@ -163,6 +163,7 @@ def _run_migrations(db):
         ("ALTER TABLE access_requests ADD COLUMN last_name TEXT", "access_requests.last_name"),
         ("ALTER TABLE golfers ADD COLUMN tier_override INTEGER", "golfers.tier_override"),
         ("ALTER TABLE golfers ADD COLUMN dk_salary INTEGER", "golfers.dk_salary"),
+        ("ALTER TABLE tournaments ADD COLUMN refresh_interval_minutes INTEGER DEFAULT 60", "tournaments.refresh_interval_minutes"),
     ]
     for sql, description in migrations:
         try:
@@ -2287,7 +2288,8 @@ def admin_dashboard():
     tournaments = db.execute("""
         SELECT t.id, t.external_id, t.name, t.season_year, t.is_active, t.picks_locked,
                (SELECT COUNT(*) FROM entries WHERE tournament_id = t.id) as entry_count,
-               (SELECT COUNT(*) FROM golfers WHERE tournament_id = t.id) as golfer_count
+               (SELECT COUNT(*) FROM golfers WHERE tournament_id = t.id) as golfer_count,
+               t.refresh_interval_minutes
         FROM tournaments t ORDER BY t.created_at DESC
     """).fetchall()
 
@@ -2299,7 +2301,8 @@ def admin_dashboard():
         'is_active': bool(t[4]),
         'picks_locked': bool(t[5]),
         'entry_count': t[6],
-        'golfer_count': t[7]
+        'golfer_count': t[7],
+        'refresh_interval_minutes': t[8] or 60
     } for t in tournaments]
 
     # Load cached schedule from DB (fetched on demand via /admin/refresh-schedule)
@@ -2365,6 +2368,7 @@ def admin_create_tournament():
     external_id = request.form.get('external_id', '').strip()
     name = request.form.get('name', '').strip()
     season_year = request.form.get('season_year', datetime.now().year)
+    refresh_interval = int(request.form.get('refresh_interval_minutes', 60))
 
     if not external_id or not name:
         return redirect(url_for('admin_dashboard'))
@@ -2373,12 +2377,33 @@ def admin_create_tournament():
 
     try:
         db.execute("""
-            INSERT INTO tournaments (id, external_id, name, season_year)
-            VALUES (lower(hex(randomblob(16))), ?, ?, ?)
-        """, [external_id, name, int(season_year)])
+            INSERT INTO tournaments (id, external_id, name, season_year, refresh_interval_minutes)
+            VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?)
+        """, [external_id, name, int(season_year), refresh_interval])
         db.commit()
     except Exception as e:
         logger.error(f"Error creating tournament: {e}")
+
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/update-refresh-interval', methods=['POST'])
+@admin_required
+@csrf_required
+def admin_update_refresh_interval():
+    """Update the refresh interval for a tournament."""
+    tournament_id = request.form.get('tournament_id')
+    interval = int(request.form.get('refresh_interval_minutes', 60))
+
+    if not tournament_id or interval not in (5, 10, 15, 30, 60):
+        return redirect(url_for('admin_dashboard'))
+
+    db = get_db()
+    db.execute(
+        "UPDATE tournaments SET refresh_interval_minutes = ? WHERE id = ?",
+        [interval, tournament_id]
+    )
+    db.commit()
 
     return redirect(url_for('admin_dashboard'))
 
@@ -2959,13 +2984,32 @@ def auto_refresh_golfers():
 
     db = get_db()
     tournament = db.execute(
-        "SELECT id, external_id, season_year FROM tournaments WHERE is_active = 1"
+        "SELECT id, external_id, season_year, refresh_interval_minutes FROM tournaments WHERE is_active = 1"
     ).fetchone()
 
     if not tournament:
         return {'status': 'no_active_tournament'}, 200
 
     tournament_id, external_id, year = tournament[0], tournament[1], tournament[2]
+    interval = tournament[3] or 60
+
+    # Check if enough time has passed since last refresh
+    if not force:
+        metadata = get_tournament_metadata(tournament_id)
+        if metadata and metadata['last_api_update']:
+            try:
+                last_update = datetime.fromisoformat(metadata['last_api_update'])
+                now_utc = datetime.utcnow()
+                elapsed_minutes = (now_utc - last_update).total_seconds() / 60
+                if elapsed_minutes < interval:
+                    return {
+                        'status': 'too_soon',
+                        'next_refresh_in_minutes': round(interval - elapsed_minutes, 1),
+                        'timestamp': time.time()
+                    }, 200
+            except (ValueError, TypeError):
+                pass  # Can't parse last_api_update, proceed with refresh
+
     success = refresh_golfers_from_api(tournament_id, external_id, year)
 
     if success:

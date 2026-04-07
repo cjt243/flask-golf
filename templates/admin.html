@@ -68,10 +68,21 @@
                             <span class="px-2 py-0.5 text-xs bg-yellow-600 text-white rounded">Picks Locked</span>
                             {% endif %}
                         </div>
-                        <p class="text-sm text-gray-400 mb-3">
-                            ID: {{ t.external_id }} &bull; Season: {{ t.season_year }} &bull;
-                            {{ t.entry_count }} entries &bull; {{ t.golfer_count }} golfers
-                        </p>
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-400 mb-3">
+                            <span>ID: {{ t.external_id }} &bull; Season: {{ t.season_year }} &bull;
+                            {{ t.entry_count }} entries &bull; {{ t.golfer_count }} golfers</span>
+                            <form action="/admin/update-refresh-interval" method="POST" class="inline-flex items-center gap-1">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="tournament_id" value="{{ t.id }}">
+                                <label class="text-xs text-gray-500">Refresh:</label>
+                                <select name="refresh_interval_minutes" onchange="this.form.submit()"
+                                    class="px-1.5 py-0.5 text-xs bg-gray-700 border border-gray-600 rounded text-white cursor-pointer">
+                                    {% for mins in [5, 10, 15, 30, 60] %}
+                                    <option value="{{ mins }}" {% if t.refresh_interval_minutes == mins %}selected{% endif %}>{{ mins }}min</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                        </div>
                         <div class="flex items-center justify-between">
                             <!-- Primary actions -->
                             <div class="flex items-center space-x-2">
