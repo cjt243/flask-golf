@@ -60,6 +60,7 @@
                         <th class="px-3 py-2 font-medium text-right" title="Profit">$</th>
                         <th class="px-3 py-2 font-medium text-right" title="Average Score">Avg</th>
                         <th class="px-3 py-2 font-medium text-right" title="Total Score">Tot</th>
+                        <th class="px-3 py-2 font-medium text-right" title="Amount Owed">Owed</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-700/50">
@@ -77,6 +78,9 @@
                         </td>
                         <td class="px-3 py-2 text-right text-gray-300">
                             {% if s.cumulative_score > 0 %}+{% endif %}{{ s.cumulative_score }}
+                        </td>
+                        <td class="px-3 py-2 text-right whitespace-nowrap {{ 'text-red-400' if s.owed > 0 else 'text-gray-600' }}">
+                            {% if s.owed > 0 %}${{ s.owed }}{% else %}-{% endif %}
                         </td>
                     </tr>
                     {% endfor %}

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% set show_nav = true %}
+{% set active_tab = 'admin' %}
+
+{% block title %}Payments - Admin{% endblock %}
+
+{% block main_class %}max-w-4xl mx-auto px-4 py-8{% endblock %}
+
+{% block content %}
+    <div class="mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="font-display text-2xl text-white">Payments</h1>
+                <p class="text-sm text-gray-400 mt-1">Track buy-in payments per tournament</p>
+            </div>
+            <a href="/admin" class="px-3 py-1.5 text-xs bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors">
+                Back to Admin
+            </a>
+        </div>
+    </div>
+
+    {% if tournament_entries %}
+    <div class="space-y-6">
+        {% for t in tournament_entries %}
+        <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+            <div class="px-4 py-3 bg-gray-700/50 flex items-center justify-between">
+                <div>
+                    <span class="text-white font-medium">{{ t.name }}</span>
+                    <span class="text-gray-400 text-xs ml-2">{{ t.season_year }}</span>
+                </div>
+                <span class="text-sm text-gray-400">${{ t.buy_in }} buy-in</span>
+            </div>
+            <div class="divide-y divide-gray-700">
+                {% for e in t.entries %}
+                <div class="px-4 py-2.5 flex items-center justify-between">
+                    <div>
+                        <span class="text-white text-sm">{{ e.name }}</span>
+                        <span class="text-gray-500 text-xs ml-2">{{ e.entry_name }}</span>
+                    </div>
+                    <form action="/admin/toggle-paid" method="POST" class="inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="entry_id" value="{{ e.id }}">
+                        <button type="submit" class="px-3 py-1 text-xs rounded transition-colors
+                            {% if e.paid %}bg-green-600/20 text-green-400 hover:bg-green-600/30
+                            {% else %}bg-red-600/20 text-red-400 hover:bg-red-600/30{% endif %}">
+                            {% if e.paid %}Paid{% else %}Unpaid{% endif %}
+                        </button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-gray-800 rounded-lg p-6 text-center border border-gray-700">
+        <p class="text-gray-400">No tournament entries yet.</p>
+    </div>
+    {% endif %}
+{% endblock %}

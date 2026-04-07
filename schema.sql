@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS entries (
     golfer_4 TEXT NOT NULL,
     golfer_5 TEXT NOT NULL,
     created_at TEXT DEFAULT (datetime('now')),
+    paid INTEGER DEFAULT 0,
     updated_at TEXT DEFAULT (datetime('now')),
     UNIQUE(user_id, tournament_id)
 );

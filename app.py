@@ -165,6 +165,7 @@ def _run_migrations(db):
         ("ALTER TABLE golfers ADD COLUMN dk_salary INTEGER", "golfers.dk_salary"),
         ("ALTER TABLE tournaments ADD COLUMN refresh_interval_minutes INTEGER DEFAULT 60", "tournaments.refresh_interval_minutes"),
         ("ALTER TABLE tournaments ADD COLUMN buy_in INTEGER DEFAULT 5", "tournaments.buy_in"),
+        ("ALTER TABLE entries ADD COLUMN paid INTEGER DEFAULT 0", "entries.paid"),
     ]
     for sql, description in migrations:
         try:
@@ -1199,7 +1200,20 @@ def compute_season_standings(season_year):
             'cuts_made': u['cuts_made'],
             'cuts_missed': u['cuts_missed'],
             'cut_pct': cut_pct,
+            'user_id': u['user_id'],
         })
+
+    # Compute owed amounts (unpaid buy-ins)
+    owed_rows = db.execute("""
+        SELECT e.user_id, SUM(t.buy_in)
+        FROM entries e
+        JOIN tournaments t ON e.tournament_id = t.id
+        WHERE t.season_year = ? AND e.paid = 0
+        GROUP BY e.user_id
+    """, [season_year]).fetchall()
+    owed_map = {r[0]: r[1] or 0 for r in owed_rows}
+    for s in standings:
+        s['owed'] = owed_map.get(s['user_id'], 0)
 
     standings.sort(key=lambda x: (-x['wins'], -x['profit'], x['avg_score'], x['cumulative_score']))
 
@@ -2971,6 +2985,60 @@ def admin_members():
                            members=members,
                            seasons=seasons,
                            tournament_results=tournament_results)
+
+
+@app.route('/admin/payments')
+@admin_required
+def admin_payments():
+    """Admin page for tracking tournament buy-in payments."""
+    db = get_db()
+    tournaments = db.execute("""
+        SELECT id, name, season_year, buy_in FROM tournaments
+        ORDER BY created_at DESC
+    """).fetchall()
+
+    tournament_entries = []
+    for t in tournaments:
+        entries = db.execute("""
+            SELECT e.id, e.entry_name, e.paid, u.first_name, u.last_name
+            FROM entries e JOIN users u ON e.user_id = u.id
+            WHERE e.tournament_id = ?
+            ORDER BY u.first_name, u.last_name
+        """, [t[0]]).fetchall()
+        if entries:
+            tournament_entries.append({
+                'id': t[0],
+                'name': t[1],
+                'season_year': t[2],
+                'buy_in': t[3] or 5,
+                'entries': [{'id': e[0], 'entry_name': e[1], 'paid': bool(e[2]),
+                             'name': f"{e[3]} {e[4]}"} for e in entries],
+            })
+
+    return render_template('admin_payments.html',
+                           tournament_entries=tournament_entries,
+                           user=g.user)
+
+
+@app.route('/admin/toggle-paid', methods=['POST'])
+@admin_required
+@csrf_required
+def admin_toggle_paid():
+    """Toggle paid status for an entry."""
+    entry_id = request.form.get('entry_id')
+    if not entry_id:
+        return redirect(url_for('admin_payments'))
+
+    db = get_db()
+    db.execute("UPDATE entries SET paid = 1 - paid WHERE id = ?", [entry_id])
+    db.commit()
+
+    # Clear standings cache so owed column updates
+    for key in list(_cache):
+        if key.startswith('standings_'):
+            _cache.pop(key, None)
+
+    return redirect(url_for('admin_payments'))
 
 
 # =============================================================================
