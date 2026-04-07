@@ -16,12 +16,12 @@ Flask Golf is a single-file Flask web app for a fantasy golf league ("80 Yard Bo
 |------------|---------|
 | `app.py` | Entire application (~2700 lines) |
 | `schema.sql` | Database schema (Turso/libSQL) |
-| `templates/*.html` | 16 Jinja2 page templates — all extend `base.html`; `macros.html` has shared macros |
+| `templates/*.html` | 17 Jinja2 page templates — all extend `base.html`; `macros.html` has shared macros |
 | `templates/emails/*.html` | 3 email templates (magic_link, admin_notification, approval) |
 | `static/css/styles.css` | Tailwind CSS output (28KB minified) |
 | `static/src/input.css` | Tailwind CSS source |
 | `tailwind.config.js` | Tailwind build config with custom golf colors |
-| `tests/` | 109 pytest tests (auth, picks, leaderboard, admin, utils, standings) |
+| `tests/` | 123 pytest tests (auth, picks, leaderboard, admin, utils, standings, buy-in/payments) |
 | `.github/workflows/` | CI (test.yml) + auto-refresh cron (auto-refresh.yml) |
 | `gunicorn_config.py` | Production server config (port 8080, 2 workers) |
 | `requirements.txt` | Pinned Python dependencies |
@@ -49,6 +49,10 @@ Flask Golf is a single-file Flask web app for a fantasy golf league ("80 Yard Bo
 | `/admin/feedback` | Admin | View/filter user feedback (open/resolved/all) |
 | `/admin/feedback/toggle` | Admin+CSRF | Toggle feedback resolved status |
 | `/admin/members` | Admin | Members list with per-season/lifetime winnings |
+| `/admin/payments` | Admin | Per-entry payment tracking with toggle |
+| `/admin/toggle-paid` | Admin+CSRF | Toggle entry paid status |
+| `/admin/update-buy-in` | Admin+CSRF | Update tournament buy-in amount |
+| `/admin/update-refresh-interval` | Admin+CSRF | Update tournament refresh interval |
 | `/health` | Public | Health check JSON |
 | `/clear_cache` | Admin | Clear in-memory cache |
 | `/api/auto-refresh` | API Key/Admin | Automated golfer score refresh (POST) |
@@ -64,6 +68,8 @@ Turso/libSQL via `libsql` (stable package, replaced `libsql_experimental`). The 
 
 **Tables**: `users`, `auth_tokens`, `sessions`, `tournaments`, `entries`, `golfers`, `tournament_metadata`, `rate_limits`, `security_events`, `access_requests`, `app_settings`, `failed_logins`, `feedback`
 
+**Notable columns added via migration**: `tournaments.refresh_interval_minutes` (DEFAULT 60), `tournaments.buy_in` (DEFAULT 5), `entries.paid` (DEFAULT 0)
+
 **User names**: `users` and `access_requests` tables have `first_name` + `last_name` columns. Leaderboard shows "First L." under entry names.
 
 **Migrations**: `_run_migrations()` runs on every app startup. It handles ALTER TABLE additions and `CREATE INDEX IF NOT EXISTS` for performance indexes. `CREATE TABLE IF NOT EXISTS` won't add columns — use the migration list for schema changes.
@@ -71,6 +77,8 @@ Turso/libSQL via `libsql` (stable package, replaced `libsql_experimental`). The 
 ### Golf API
 
 Slash Golf API via RapidAPI (`live-golf-data.p.rapidapi.com`). Endpoints: `/schedule`, `/leaderboard` (key: `leaderboardRows`), `/tournament` (key: `players`). Some fields use MongoDB-style `{"$numberInt": "4"}` — handled by `_api_int()`. Refresh via admin panel or `POST /api/auto-refresh` (X-API-Key header auth, reuses GOLF_API_KEY).
+
+Cron runs every 5 minutes (`*/5 * * * *`). Per-tournament `refresh_interval_minutes` (default 60) gates actual refreshes — endpoint checks `tournament_metadata.last_api_update` and returns `too_soon` if interval hasn't elapsed. `?force=1` bypasses both window and interval checks.
 
 ### DraftKings Salary Fetch
 
@@ -125,6 +133,12 @@ Team chip highlighting (`toggleTeamHighlight()` / `updateRowHighlighting()`) wor
 **Major detection**: `MAJOR_KEYWORDS` constant and `_is_major(tournament_name)` helper. 🏆 badge appears next to names with major wins in standings. On the leaderboard (`/`), entries show 🏆 (major winner) or 🌟 (regular season winner) via `_get_season_winner_ids(season_year)` (cached, returns `{user_id: {wins, major_wins}}`).
 
 **Performance**: `compute_season_standings()` computes entry scores inline for placement ranking rather than calling `compute_leaderboard()` per tournament upfront — avoids duplicating DB queries. `compute_leaderboard()` is only called in the `tournament_results` loop where full pick details are needed. `compute_leaderboard()` results include `user_id` per entry (used by standings placement tracking and leaderboard winner badges).
+
+### Buy-In & Payment Tracking
+
+`tournaments.buy_in` (default 5) — configurable per tournament ($5 or $10). `entries.paid` (default 0) tracks payment status. `compute_tournament_winners()` reads buy-in from DB for pot calculation. `compute_season_standings()` accumulates `total_buy_ins` per user (no hardcoded `* 5`). Owed amounts query joins entries + tournaments for unpaid buy-ins by season.
+
+**Admin**: `/admin/payments` page with per-entry paid/unpaid toggle. `/admin/update-buy-in` and `/admin/update-refresh-interval` routes update tournament settings. Both selectors auto-submit on change in admin tournament cards.
 
 ### Caching
 
@@ -213,7 +227,7 @@ The app connects to **production Turso DB** even in local dev (same instance).
 
 ### CI
 
-GitHub Actions runs pytest on push/PR to `main` (`.github/workflows/test.yml`). Auto-refresh cron runs hourly during tournament windows (`.github/workflows/auto-refresh.yml`). Required GitHub Actions secrets: `GOLF_API_KEY`, `APP_URL`.
+GitHub Actions runs pytest on push/PR to `main` (`.github/workflows/test.yml`). Auto-refresh cron runs every 5 minutes during tournament windows (`.github/workflows/auto-refresh.yml`). Required GitHub Actions secrets: `GOLF_API_KEY`, `APP_URL`.
 
 ## Cut Line Modifier (Leaderboard Scoring)
 
