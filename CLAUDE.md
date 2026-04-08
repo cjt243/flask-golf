@@ -17,11 +17,11 @@ Flask Golf is a single-file Flask web app for a fantasy golf league ("80 Yard Bo
 | `app.py` | Entire application (~2700 lines) |
 | `schema.sql` | Database schema (Turso/libSQL) |
 | `templates/*.html` | 17 Jinja2 page templates — all extend `base.html`; `macros.html` has shared macros |
-| `templates/emails/*.html` | 3 email templates (magic_link, admin_notification, approval) |
+| `templates/emails/*.html` | 4 email templates (magic_link, admin_notification, approval, tournament_announcement) |
 | `static/css/styles.css` | Tailwind CSS output (28KB minified) |
 | `static/src/input.css` | Tailwind CSS source |
 | `tailwind.config.js` | Tailwind build config with custom golf colors |
-| `tests/` | 123 pytest tests (auth, picks, leaderboard, admin, utils, standings, buy-in/payments) |
+| `tests/` | 129 pytest tests (auth, picks, leaderboard, admin, utils, standings, buy-in/payments) |
 | `.github/workflows/` | CI (test.yml) + auto-refresh cron (auto-refresh.yml) |
 | `gunicorn_config.py` | Production server config (port 8080, 2 workers) |
 | `requirements.txt` | Pinned Python dependencies |
@@ -53,6 +53,7 @@ Flask Golf is a single-file Flask web app for a fantasy golf league ("80 Yard Bo
 | `/admin/toggle-paid` | Admin+CSRF | Toggle entry paid status |
 | `/admin/update-buy-in` | Admin+CSRF | Update tournament buy-in amount |
 | `/admin/update-refresh-interval` | Admin+CSRF | Update tournament refresh interval |
+| `/admin/announce-tournament` | Admin+CSRF | Send picks-open announcement email to all users |
 | `/health` | Public | Health check JSON |
 | `/clear_cache` | Admin | Clear in-memory cache |
 | `/api/auto-refresh` | API Key/Admin | Automated golfer score refresh (POST) |
@@ -60,7 +61,7 @@ Flask Golf is a single-file Flask web app for a fantasy golf league ("80 Yard Bo
 
 ### Auth
 
-Magic link email → Argon2-hashed tokens → SHA-256 session cookies (7-day expiry). Sessions in `sessions` table. Decorators: `@login_required`, `@admin_required`, `@csrf_required`. Admin status from `ADMIN_EMAILS` env var.
+Magic link email → Argon2-hashed tokens → SHA-256 session cookies (7-day expiry). Sessions in `sessions` table. Decorators: `@login_required`, `@admin_required`, `@csrf_required`. Admin status from `ADMIN_EMAILS` env var. `generate_magic_token(email, expiry_minutes)` creates and stores tokens — reused by login flow (10min) and tournament announcements (48h).
 
 ### Database
 
@@ -140,6 +141,10 @@ Team chip highlighting (`toggleTeamHighlight()` / `updateRowHighlighting()`) wor
 
 **Admin**: `/admin/payments` page with per-entry paid/unpaid toggle. `/admin/update-buy-in` and `/admin/update-refresh-interval` routes update tournament settings. Both selectors auto-submit on change in admin tournament cards.
 
+### Tournament Announcements
+
+Admin can send a "picks are open" email to all users from the tournament card overflow menu (active + picks unlocked). Each user gets a personalized magic link (48-hour expiry) that logs them in and redirects to `/make_picks`. Announcement status tracked in `app_settings` (key: `announcement_sent_{tournament_id}`) as JSON with `sent_at`, `total`, `success`, `errors`. Dashboard shows "Announced {date}" indicator and "Re-Announce" option if already sent. `send_tournament_announcement(tournament, host_url)` loops users individually via `resend.Emails.send()`.
+
 ### Caching
 
 In-memory dict, 5-minute TTL, per-worker (not shared). Use `clear_tournament_cache(tournament_id)` to clear specific caches, or `clear_tournament_cache()` to clear all. Called on pick submission, tournament activation, golfer refresh, and tier changes.
@@ -179,7 +184,7 @@ export PATH="$HOME/.local/share/fnm:$PATH" && eval "$(fnm env)"
 - Security events logged to `security_events` table
 - Templates extend `base.html` — nav, footer, Tailwind config are shared. Use `{% set show_nav = true %}` and `{% set active_tab = '...' %}` for authenticated pages
 - `templates/macros.html` provides `form_button()` (admin action forms) and `empty_state()` (no-data cards) macros — import with `{% from "macros.html" import form_button, empty_state %}`
-- Shared helpers reduce duplication: `format_last_updated()`, `clear_tournament_cache()`, `get_tournament_external_info()`, `compute_tier()` with `TIER_BOUNDARIES` constant, `_build_tier_lists(tournament_id)`, `_render_pick_form()`, `compute_tournament_winners(tournament_id)`, `_is_major(tournament_name)` with `MAJOR_KEYWORDS`, `_get_season_winner_ids(season_year)`
+- Shared helpers reduce duplication: `format_last_updated()`, `clear_tournament_cache()`, `get_tournament_external_info()`, `compute_tier()` with `TIER_BOUNDARIES` constant, `_build_tier_lists(tournament_id)`, `_render_pick_form()`, `compute_tournament_winners(tournament_id)`, `_is_major(tournament_name)` with `MAJOR_KEYWORDS`, `_get_season_winner_ids(season_year)`, `generate_magic_token(email, expiry_minutes)`, `send_tournament_announcement(tournament, host_url)`, `get_announcement_status(tournament_id)`
 - Rate limiting uses `INSERT ... ON CONFLICT DO UPDATE` upsert pattern
 - Token verification logic lives in `_verify_magic_token()`, API schedule parsing in `_parse_api_schedule()`, player name extraction in `_extract_player_name()`
 - Session cleanup is probabilistic (~1% of authenticated requests)

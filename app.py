@@ -626,6 +626,22 @@ def create_session(user_id):
     return session_token, expires_at
 
 
+def generate_magic_token(email, expiry_minutes=None):
+    """Generate and store a magic link token. Returns raw_token."""
+    if expiry_minutes is None:
+        expiry_minutes = MAGIC_LINK_EXPIRY_MINUTES
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = ph.hash(raw_token)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=expiry_minutes)
+    db = get_db()
+    db.execute("""
+        INSERT INTO auth_tokens (id, email, token_hash, expires_at)
+        VALUES (lower(hex(randomblob(16))), ?, ?, ?)
+    """, [email, token_hash, expires_at.isoformat()])
+    db.commit()
+    return raw_token
+
+
 def send_magic_link(email, token, next_url=''):
     """Send magic link email via Resend."""
     api_key = os.getenv('RESEND_API_KEY')
@@ -712,6 +728,64 @@ def send_approval_email(email, name):
     except Exception as e:
         logger.error(f"Error sending approval email: {e}")
         return False
+
+
+def get_announcement_status(tournament_id):
+    """Check if announcement was sent for a tournament."""
+    key = f"announcement_sent_{tournament_id}"
+    db = get_db()
+    row = db.execute("SELECT value FROM app_settings WHERE key = ?", [key]).fetchone()
+    if row:
+        return json.loads(row[0])
+    return None
+
+
+def send_tournament_announcement(tournament, host_url):
+    """Send tournament announcement email to all users with magic links."""
+    api_key = os.getenv('RESEND_API_KEY')
+    email_from = os.getenv('EMAIL_FROM', 'picks@updates.cullin.link')
+
+    db = get_db()
+    users = db.execute("SELECT id, email, first_name FROM users").fetchall()
+
+    if not users:
+        return {'total': 0, 'success': 0, 'errors': []}
+
+    success = 0
+    errors = []
+
+    for user in users:
+        user_email = user[1]
+        user_name = user[2] or 'there'
+
+        raw_token = generate_magic_token(user_email, expiry_minutes=2880)
+        verify_url = f"{host_url}auth/verify?token={raw_token}&email={quote(user_email, safe='')}&next=%2Fmake_picks"
+
+        email_html = render_template('emails/tournament_announcement.html',
+                                     name=user_name,
+                                     tournament_name=tournament['name'],
+                                     buy_in=tournament['buy_in'],
+                                     verify_url=verify_url)
+
+        if not api_key:
+            logger.info(f"ANNOUNCEMENT for {user_name} ({user_email}): {verify_url}")
+            success += 1
+            continue
+
+        resend.api_key = api_key
+        try:
+            resend.Emails.send({
+                "from": email_from,
+                "to": user_email,
+                "subject": f"{tournament['name']} is open for picks!",
+                "html": email_html
+            })
+            success += 1
+        except Exception as e:
+            logger.error(f"Error sending announcement to {user_email}: {e}")
+            errors.append(user_email)
+
+    return {'total': len(users), 'success': success, 'errors': errors}
 
 
 # =============================================================================
@@ -1700,15 +1774,7 @@ def auth_request_link():
         return redirect(url_for('auth_check_email'))
 
     # Generate token
-    raw_token = secrets.token_urlsafe(32)
-    token_hash = ph.hash(raw_token)
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=MAGIC_LINK_EXPIRY_MINUTES)
-
-    db.execute("""
-        INSERT INTO auth_tokens (id, email, token_hash, expires_at)
-        VALUES (lower(hex(randomblob(16))), ?, ?, ?)
-    """, [email, token_hash, expires_at.isoformat()])
-    db.commit()
+    raw_token = generate_magic_token(email)
 
     # Send email (carry `next` URL through the magic link)
     next_url = request.form.get('next', '')
@@ -2320,18 +2386,24 @@ def admin_dashboard():
         FROM tournaments t ORDER BY t.created_at DESC
     """).fetchall()
 
-    tournament_list = [{
-        'id': t[0],
-        'external_id': t[1],
-        'name': t[2],
-        'season_year': t[3],
-        'is_active': bool(t[4]),
-        'picks_locked': bool(t[5]),
-        'entry_count': t[6],
-        'golfer_count': t[7],
-        'refresh_interval_minutes': t[8] or 60,
-        'buy_in': t[9] or 5
-    } for t in tournaments]
+    tournament_list = []
+    for t in tournaments:
+        t_dict = {
+            'id': t[0],
+            'external_id': t[1],
+            'name': t[2],
+            'season_year': t[3],
+            'is_active': bool(t[4]),
+            'picks_locked': bool(t[5]),
+            'entry_count': t[6],
+            'golfer_count': t[7],
+            'refresh_interval_minutes': t[8] or 60,
+            'buy_in': t[9] or 5,
+            'announcement': get_announcement_status(t[0])
+        }
+        tournament_list.append(t_dict)
+
+    user_count = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
 
     # Load cached schedule from DB (fetched on demand via /admin/refresh-schedule)
     year = int(request.args.get('year', datetime.now().year))
@@ -2367,6 +2439,7 @@ def admin_dashboard():
                          access_requests=access_requests,
                          registration_open=registration_open,
                          refresh_schedule=refresh_schedule,
+                         user_count=user_count,
                          user=g.user)
 
 
@@ -2454,6 +2527,57 @@ def admin_update_buy_in():
         [buy_in, tournament_id]
     )
     db.commit()
+
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/announce-tournament', methods=['POST'])
+@admin_required
+@csrf_required
+def admin_announce_tournament():
+    """Send announcement email to all users for a tournament."""
+    tournament_id = request.form.get('tournament_id')
+
+    if not tournament_id:
+        return redirect(url_for('admin_dashboard'))
+
+    db = get_db()
+    tournament = db.execute(
+        "SELECT id, name, is_active, picks_locked, buy_in FROM tournaments WHERE id = ?",
+        [tournament_id]
+    ).fetchone()
+
+    if not tournament or not tournament[2] or tournament[3]:
+        # Tournament must exist, be active, and picks must be unlocked
+        return redirect(url_for('admin_dashboard'))
+
+    t = {
+        'id': tournament[0],
+        'name': tournament[1],
+        'buy_in': tournament[4] or 5
+    }
+
+    result = send_tournament_announcement(t, request.host_url)
+
+    # Store announcement status
+    status = {
+        'sent_at': datetime.now(timezone.utc).isoformat(),
+        'sent_by': g.user['id'],
+        'total': result['total'],
+        'success': result['success'],
+        'errors': result['errors']
+    }
+    db.execute(
+        "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
+        [f"announcement_sent_{tournament_id}", json.dumps(status)]
+    )
+    db.commit()
+
+    log_security_event('tournament_announced', request, user_id=g.user['id'],
+                       details={'tournament_id': tournament_id, 'tournament_name': t['name'],
+                                'users_notified': result['success']})
+
+    logger.info(f"Tournament announcement sent for {t['name']}: {result['success']}/{result['total']} emails sent")
 
     return redirect(url_for('admin_dashboard'))
 
