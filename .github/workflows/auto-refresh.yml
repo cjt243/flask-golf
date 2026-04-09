@@ -15,7 +15,7 @@ jobs:
     steps:
       - name: Refresh golfer scores
         run: |
-          response=$(curl -s -w "\n%{http_code}" \
+          response=$(curl -s -L --post301 -w "\n%{http_code}" \
             -X POST \
             -H "X-API-Key: ${{ secrets.GOLF_API_KEY }}" \
             "${{ secrets.APP_URL }}/api/auto-refresh")
