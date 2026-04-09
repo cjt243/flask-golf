@@ -11,7 +11,7 @@ def _insert_tournament(db, tid=None, name='Test Open', season_year=2026,
     tid = tid or secrets.token_hex(16)
     db.execute(
         "INSERT INTO tournaments (id, external_id, name, season_year, is_active, picks_locked, buy_in) "
-        "VALUES (?, ?, ?, ?, 1, ?, ?)",
+        "VALUES (?, ?, ?, ?, 0, ?, ?)",
         [tid, f'ext-{tid[:6]}', name, season_year, 1 if picks_locked else 0, buy_in],
     )
     db.commit()

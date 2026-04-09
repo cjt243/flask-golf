@@ -67,6 +67,8 @@ Magic link email → Argon2-hashed tokens → SHA-256 session cookies (7-day exp
 
 Turso/libSQL via `libsql` (stable package, replaced `libsql_experimental`). The `LibSQLConnectionWrapper` auto-converts list params to tuples. All queries use parameterized SQL (no ORM).
 
+**Tournament lifecycle**: `is_active = 1` means currently in progress; `is_active = 0, picks_locked = 1` means completed. For historical stats/standings, always filter `is_active = 0` — `picks_locked = 1` alone is not sufficient (active tournaments can have locked picks while still in progress).
+
 **Tables**: `users`, `auth_tokens`, `sessions`, `tournaments`, `entries`, `golfers`, `tournament_metadata`, `rate_limits`, `security_events`, `access_requests`, `app_settings`, `failed_logins`, `feedback`
 
 **Notable columns added via migration**: `tournaments.refresh_interval_minutes` (DEFAULT 60), `tournaments.buy_in` (DEFAULT 5), `entries.paid` (DEFAULT 0)

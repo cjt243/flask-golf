@@ -16,7 +16,7 @@ def clear_cache():
     app_module._cache.clear()
 
 
-def _insert_tournament(db, tid=None, name='Test Open', season_year=2026, active=True, picks_locked=True):
+def _insert_tournament(db, tid=None, name='Test Open', season_year=2026, active=False, picks_locked=True):
     tid = tid or secrets.token_hex(16)
     db.execute(
         "INSERT INTO tournaments (id, external_id, name, season_year, is_active, picks_locked) "
