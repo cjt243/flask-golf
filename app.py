@@ -1380,7 +1380,7 @@ def _get_season_winner_ids(season_year):
 
     db = get_db()
     tournaments = db.execute(
-        "SELECT id, name FROM tournaments WHERE season_year = ? AND picks_locked = 1",
+        "SELECT id, name FROM tournaments WHERE season_year = ? AND picks_locked = 1 AND is_active = 0",
         [season_year]
     ).fetchall()
 
