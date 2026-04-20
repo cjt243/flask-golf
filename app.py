@@ -1289,7 +1289,7 @@ def compute_season_standings(season_year):
     for s in standings:
         s['owed'] = owed_map.get(s['user_id'], 0)
 
-    standings.sort(key=lambda x: (-x['wins'], -x['profit'], x['avg_score'], x['cumulative_score']))
+    standings.sort(key=lambda x: (-x['wins'], x['avg_score'], -x['profit']))
 
     # Build selection stats
     most_picked = []
