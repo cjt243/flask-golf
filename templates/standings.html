@@ -53,12 +53,12 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="bg-gray-800 text-gray-300 text-left">
-                        <th class="px-3 py-2 font-medium">#</th>
-                        <th class="px-3 py-2 font-medium">Name</th>
+                        <th class="px-3 py-2 font-medium sticky left-0 z-10 bg-gray-800 w-10 min-w-[2.5rem]">#</th>
+                        <th class="px-3 py-2 font-medium sticky left-10 z-10 bg-gray-800 sticky-shadow">Name</th>
                         <th class="px-3 py-2 font-medium text-center" title="Wins">W</th>
+                        <th class="px-3 py-2 font-medium text-right" title="Average Score">Avg</th>
                         <th class="px-3 py-2 font-medium text-center" title="Played">P</th>
                         <th class="px-3 py-2 font-medium text-right" title="Profit">$</th>
-                        <th class="px-3 py-2 font-medium text-right" title="Average Score">Avg</th>
                         <th class="px-3 py-2 font-medium text-right" title="Total Score">Tot</th>
                         <th class="px-3 py-2 font-medium text-right" title="Amount Owed">Owed</th>
                     </tr>
@@ -66,15 +66,15 @@
                 <tbody class="divide-y divide-gray-700/50">
                     {% for s in standings %}
                     <tr class="hover:bg-gray-800/40 transition-colors">
-                        <td class="px-3 py-2 text-gray-400">{{ loop.index }}</td>
-                        <td class="px-3 py-2 text-white font-medium whitespace-nowrap">{{ s.first_name }} {{ s.last_name[0] }}.{% if s.major_wins > 0 %} 🏆{% endif %}</td>
+                        <td class="px-3 py-2 text-gray-400 sticky left-0 z-10 bg-gray-900 w-10 min-w-[2.5rem]">{{ loop.index }}</td>
+                        <td class="px-3 py-2 text-white font-medium whitespace-nowrap sticky left-10 z-10 bg-gray-900 sticky-shadow">{{ s.first_name }} {{ s.last_name[0] }}.{% if s.major_wins > 0 %} 🏆{% endif %}</td>
                         <td class="px-3 py-2 text-center text-golf-gold-400 font-semibold">{{ s.wins }}</td>
+                        <td class="px-3 py-2 text-right text-gray-300">
+                            {% if s.avg_score > 0 %}+{% endif %}{{ s.avg_score }}
+                        </td>
                         <td class="px-3 py-2 text-center text-gray-300">{{ s.tournaments_played }}</td>
                         <td class="px-3 py-2 text-right font-medium whitespace-nowrap {{ 'text-green-400' if s.profit > 0 else 'text-red-400' if s.profit < 0 else 'text-gray-300' }}">
                             {{ '${:,.0f}'.format(s.profit) if s.profit >= 0 else '-${:,.0f}'.format(s.profit|abs) }}
-                        </td>
-                        <td class="px-3 py-2 text-right text-gray-300">
-                            {% if s.avg_score > 0 %}+{% endif %}{{ s.avg_score }}
                         </td>
                         <td class="px-3 py-2 text-right text-gray-300">
                             {% if s.cumulative_score > 0 %}+{% endif %}{{ s.cumulative_score }}
@@ -96,7 +96,7 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="bg-gray-800 text-gray-300 text-left">
-                        <th class="px-3 py-2 font-medium">Name</th>
+                        <th class="px-3 py-2 font-medium sticky left-0 z-10 bg-gray-800 sticky-shadow">Name</th>
                         <th class="px-3 py-2 font-medium text-center" title="1st Place">🥇</th>
                         <th class="px-3 py-2 font-medium text-center" title="2nd Place">🥈</th>
                         <th class="px-3 py-2 font-medium text-center" title="3rd Place">🥉</th>
@@ -106,7 +106,7 @@
                 <tbody class="divide-y divide-gray-700/50">
                     {% for s in standings %}
                     <tr class="hover:bg-gray-800/40 transition-colors">
-                        <td class="px-3 py-2 text-white font-medium whitespace-nowrap">{{ s.first_name }} {{ s.last_name[0] }}.{% if s.major_wins > 0 %} 🏆{% endif %}</td>
+                        <td class="px-3 py-2 text-white font-medium whitespace-nowrap sticky left-0 z-10 bg-gray-900 sticky-shadow">{{ s.first_name }} {{ s.last_name[0] }}.{% if s.major_wins > 0 %} 🏆{% endif %}</td>
                         <td class="px-3 py-2 text-center text-gray-300">{{ s.wins }}</td>
                         <td class="px-3 py-2 text-center text-gray-300">{{ s.second_place }}</td>
                         <td class="px-3 py-2 text-center text-gray-300">{{ s.third_place }}</td>
@@ -126,7 +126,7 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="bg-gray-800 text-gray-300 text-left">
-                        <th class="px-3 py-2 font-medium">Name</th>
+                        <th class="px-3 py-2 font-medium sticky left-0 z-10 bg-gray-800 sticky-shadow">Name</th>
                         <th class="px-3 py-2 font-medium text-center"><span class="inline-block w-2 h-2 rounded-full bg-golf-gold-400 mr-1"></span>T1</th>
                         <th class="px-3 py-2 font-medium text-center"><span class="inline-block w-2 h-2 rounded-full bg-blue-400 mr-1"></span>T2</th>
                         <th class="px-3 py-2 font-medium text-center"><span class="inline-block w-2 h-2 rounded-full bg-purple-400 mr-1"></span>T3</th>
@@ -135,7 +135,7 @@
                 <tbody class="divide-y divide-gray-700/50">
                     {% for s in standings %}
                     <tr class="hover:bg-gray-800/40 transition-colors">
-                        <td class="px-3 py-2 text-white font-medium whitespace-nowrap">{{ s.first_name }} {{ s.last_name[0] }}.</td>
+                        <td class="px-3 py-2 text-white font-medium whitespace-nowrap sticky left-0 z-10 bg-gray-900 sticky-shadow">{{ s.first_name }} {{ s.last_name[0] }}.</td>
                         {% for t in [1, 2, 3] %}
                         <td class="px-3 py-2 text-center text-gray-300">{{ s.tier_avg_pos[t] if s.tier_avg_pos[t] is not none else '--' }}</td>
                         {% endfor %}
@@ -153,7 +153,7 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="bg-gray-800 text-gray-300 text-left">
-                        <th class="px-3 py-2 font-medium">Name</th>
+                        <th class="px-3 py-2 font-medium sticky left-0 z-10 bg-gray-800 sticky-shadow">Name</th>
                         <th class="px-3 py-2 font-medium text-center"><span class="inline-block w-2 h-2 rounded-full bg-golf-gold-400 mr-1"></span>T1</th>
                         <th class="px-3 py-2 font-medium text-center"><span class="inline-block w-2 h-2 rounded-full bg-blue-400 mr-1"></span>T2</th>
                         <th class="px-3 py-2 font-medium text-center"><span class="inline-block w-2 h-2 rounded-full bg-purple-400 mr-1"></span>T3</th>
@@ -162,7 +162,7 @@
                 <tbody class="divide-y divide-gray-700/50">
                     {% for s in standings %}
                     <tr class="hover:bg-gray-800/40 transition-colors">
-                        <td class="px-3 py-2 text-white font-medium whitespace-nowrap">{{ s.first_name }} {{ s.last_name[0] }}.</td>
+                        <td class="px-3 py-2 text-white font-medium whitespace-nowrap sticky left-0 z-10 bg-gray-900 sticky-shadow">{{ s.first_name }} {{ s.last_name[0] }}.</td>
                         {% for t in [1, 2, 3] %}
                         <td class="px-3 py-2 text-center text-gray-300">
                             {% if s.tier_avg_score[t] is not none %}
@@ -184,7 +184,7 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="bg-gray-800 text-gray-300 text-left">
-                        <th class="px-3 py-2 font-medium">Name</th>
+                        <th class="px-3 py-2 font-medium sticky left-0 z-10 bg-gray-800 sticky-shadow">Name</th>
                         <th class="px-3 py-2 font-medium text-center">Made</th>
                         <th class="px-3 py-2 font-medium text-center">Missed</th>
                         <th class="px-3 py-2 font-medium text-center">Cut %</th>
@@ -193,7 +193,7 @@
                 <tbody class="divide-y divide-gray-700/50">
                     {% for s in standings %}
                     <tr class="hover:bg-gray-800/40 transition-colors">
-                        <td class="px-3 py-2 text-white font-medium whitespace-nowrap">{{ s.first_name }} {{ s.last_name[0] }}.</td>
+                        <td class="px-3 py-2 text-white font-medium whitespace-nowrap sticky left-0 z-10 bg-gray-900 sticky-shadow">{{ s.first_name }} {{ s.last_name[0] }}.</td>
                         <td class="px-3 py-2 text-center text-green-400">{{ s.cuts_made }}</td>
                         <td class="px-3 py-2 text-center text-red-400">{{ s.cuts_missed }}</td>
                         <td class="px-3 py-2 text-center text-gray-300 font-medium">{{ s.cut_pct }}%</td>
@@ -308,7 +308,7 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="bg-gray-800 text-gray-300 text-left">
-                        <th class="px-3 py-2 font-medium">Golfer</th>
+                        <th class="px-3 py-2 font-medium sticky left-0 z-10 bg-gray-800 sticky-shadow">Golfer</th>
                         <th class="px-3 py-2 font-medium text-center">Picked</th>
                         <th class="px-3 py-2 font-medium">By Teams</th>
                         <th class="px-3 py-2 font-medium text-right">Avg Score</th>
@@ -317,7 +317,7 @@
                 <tbody class="divide-y divide-gray-700/50">
                     {% for g in selection_stats.most_picked[:20] %}
                     <tr class="hover:bg-gray-800/40 transition-colors">
-                        <td class="px-3 py-2 text-white font-medium whitespace-nowrap">{{ g.golfer }}</td>
+                        <td class="px-3 py-2 text-white font-medium whitespace-nowrap sticky left-0 z-10 bg-gray-900 sticky-shadow">{{ g.golfer }}</td>
                         <td class="px-3 py-2 text-center text-golf-gold-400 font-semibold">{{ g.count }}</td>
                         <td class="px-3 py-2 text-gray-300">
                             {% for team in g.teams %}
@@ -348,7 +348,7 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="bg-gray-800 text-gray-300 text-left">
-                        <th class="px-3 py-2 font-medium text-right">Score</th>
+                        <th class="px-3 py-2 font-medium text-right sticky left-0 z-10 bg-gray-800 sticky-shadow">Score</th>
                         <th class="px-3 py-2 font-medium">Team</th>
                         <th class="px-3 py-2 font-medium">Player(s)</th>
                         <th class="px-3 py-2 font-medium">Tournament</th>
@@ -357,7 +357,7 @@
                 <tbody class="divide-y divide-gray-700/50">
                     {% for p in selection_stats.tier_best[tier] %}
                     <tr class="hover:bg-gray-800/40 transition-colors">
-                        <td class="px-3 py-2 text-right font-semibold {{ 'text-green-400' if p.score < 0 else 'text-red-400' if p.score > 0 else 'text-gray-300' }}">
+                        <td class="px-3 py-2 text-right font-semibold sticky left-0 z-10 bg-gray-900 sticky-shadow {{ 'text-green-400' if p.score < 0 else 'text-red-400' if p.score > 0 else 'text-gray-300' }}">
                             {% if p.score > 0 %}+{% elif p.score == 0 %}E{% endif %}{% if p.score != 0 %}{{ p.score }}{% endif %}
                         </td>
                         <td class="px-3 py-2 text-gray-300">
@@ -389,7 +389,7 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="bg-gray-800 text-gray-300 text-left">
-                        <th class="px-3 py-2 font-medium">Tournament</th>
+                        <th class="px-3 py-2 font-medium sticky left-0 z-10 bg-gray-800 sticky-shadow">Tournament</th>
                         <th class="px-3 py-2 font-medium">Golfer</th>
                         <th class="px-3 py-2 font-medium text-center">Finish</th>
                         <th class="px-3 py-2 font-medium text-right">Score</th>
@@ -398,7 +398,7 @@
                 <tbody class="divide-y divide-gray-700/50">
                     {% for m in selection_stats.mr_relevant|reverse %}
                     <tr class="hover:bg-gray-800/40 transition-colors">
-                        <td class="px-3 py-2 text-gray-400 whitespace-nowrap">{{ m.tournament }}</td>
+                        <td class="px-3 py-2 text-gray-400 whitespace-nowrap sticky left-0 z-10 bg-gray-900 sticky-shadow">{{ m.tournament }}</td>
                         <td class="px-3 py-2 text-white font-medium whitespace-nowrap">{{ m.golfer }}</td>
                         <td class="px-3 py-2 text-center text-gray-300">{{ m.position }}</td>
                         <td class="px-3 py-2 text-right font-semibold {{ 'text-green-400' if m.score < 0 else 'text-red-400' if m.score > 0 else 'text-gray-300' }}">

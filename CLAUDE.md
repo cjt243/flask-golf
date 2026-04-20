@@ -117,7 +117,7 @@ Once `picks_locked=True`, the full leaderboard renders normally.
 
 **View toggle**: "Tournament" (default, sorted by position) vs "By Tier" (grouped by tier with divider rows). `setView('tournament'|'tier')` toggles visibility via `data-view` attribute. Tier computed in `app.py` via `compute_tier()` on DK salary sort order, passed as `TIER` in template results.
 
-**Tier badges**: Small colored dots next to golfer names — gold (Tier 1), green (Tier 2), muted green (Tier 3). CSS class `.tier-dot`.
+**Tier badges**: Small colored dots next to golfer names — gold (Tier 1), blue (Tier 2), purple (Tier 3). CSS class `.tier-dot`. Consistent across `player_standings.html`, `standings.html`, and `pick_form.html`.
 
 **Template context**: `all_teams` (sorted unique team names) computed in `app.py` and passed to template for the filter dropdown.
 
@@ -126,6 +126,10 @@ Team chip highlighting (`toggleTeamHighlight()` / `updateRowHighlighting()`) wor
 ### Season Standings
 
 `standings.html` uses a 4-tab layout (League / Tournament Stats / Selection Stats / Winner's Circle) for `/standings`. `compute_season_standings(season_year)` returns a 3-tuple: `(standings, selection_stats, tournament_results)`. Tier scores are per-tournament combined totals (not per-golfer). Tier best performances merge entries with identical golfer sets in the same tournament. Selection stats use "First L." display names, not entry names. Tier dot colors: `bg-golf-gold-400` (T1), `bg-blue-400` (T2), `bg-purple-400` (T3) — consistent with `player_standings.html`.
+
+**Sort order**: `(-wins, avg_score, -profit)` — wins first, then average score (lower is better), then profit as tiebreaker.
+
+**Mobile tables**: Standings tables use sticky first columns (# + Name pinned with `sticky-shadow` CSS class) so users keep row context while scrolling horizontally. League tab column order: #, Name, W, Avg, P, $, Tot, Owed (wins and avg first after name).
 
 **League tab extras**: "Podium Finishes" table (🥇🥈🥉💩) between standings and tier breakdown. Last place only counted when >1 entry.
 
@@ -167,7 +171,7 @@ Floating speech bubble button (bottom-right) on all authenticated pages (`{% if 
 
 ### Tailwind CSS
 
-Static build via Tailwind CLI v3.4. Custom colors: golf-green, golf-gold, turf (mapped from Tailwind green/amber defaults). `admin_tiers.html` and `macros.html` use dynamic Tailwind classes — all safelisted in `tailwind.config.js`.
+Static build via Tailwind CLI v3.4. Custom colors: golf-green, golf-gold, turf (mapped from Tailwind green/amber defaults). `admin_tiers.html` and `macros.html` use dynamic Tailwind classes — all safelisted in `tailwind.config.js`. Custom utilities in `input.css`: `card-glow` (green glow on cards), `sticky-shadow` (mobile-only shadow on sticky table columns).
 
 ```bash
 npm run build:css                    # Rebuild after template changes
