@@ -1,0 +1,39 @@
+name: Manual tournament refresh
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - claude/trigger-tournament-refresh-8f9Jv
+    paths:
+      - .github/workflows/manual-refresh.yml
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Force-refresh active tournament
+        run: |
+          response=$(curl -s -L --post301 -w "\n%{http_code}" \
+            -X POST \
+            -H "X-API-Key: ${{ secrets.GOLF_API_KEY }}" \
+            "${{ secrets.APP_URL }}/api/auto-refresh?force=1")
+
+          http_code=$(echo "$response" | tail -1)
+          body=$(echo "$response" | head -n -1)
+
+          echo "Response code: $http_code"
+          echo "Body: $body"
+
+          if [ "$http_code" = "200" ]; then
+            echo "Refresh successful"
+          elif [ "$http_code" = "401" ]; then
+            echo "::error::Authentication failed — check GOLF_API_KEY secret"
+            exit 1
+          elif [ "$http_code" = "502" ]; then
+            echo "::error::Golf API returned an error (upstream issue)"
+            exit 1
+          else
+            echo "::error::Unexpected response code: $http_code"
+            exit 1
+          fi
