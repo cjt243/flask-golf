@@ -1,4 +1,5 @@
 name: Manual tournament refresh
+# rerun nonce: 2026-05-03T21:09Z
 
 on:
   workflow_dispatch: {}
