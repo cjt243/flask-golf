@@ -901,11 +901,14 @@ def get_entries(tournament_id):
     } for r in results]
 
 
+_CUT_STATUSES = {'cut', 'mc', 'mdf'}
+
+
 def apply_cut_modifier(score, status, cut_line):
     """Apply cut line modifier for leaderboard scoring."""
     if cut_line is None or score is None:
         return score
-    if status == 'cut':
+    if status and str(status).strip().lower() in _CUT_STATUSES:
         return cut_line + 1
     return min(score, cut_line)
 
@@ -1534,10 +1537,14 @@ def refresh_golfers_from_api(tournament_id, tournament_external_id, year=None):
         # Current round score
         today_str = player.get('today', player.get('currentRoundScore', ''))
 
-        # Status - check for 'status' or infer from position
-        status = player.get('status', 'active')
-        if status.upper() == 'CUT' or player.get('isCut'):
+        # Status - normalize cut indicators from status, isCut, or position
+        raw_status = player.get('status', 'active')
+        status_norm = str(raw_status or '').strip().lower()
+        position_norm = str(player.get('position') or player.get('pos') or '').strip().upper()
+        if status_norm in _CUT_STATUSES or player.get('isCut') or position_norm in {'CUT', 'MC', 'MDF'}:
             status = 'cut'
+        else:
+            status = raw_status
 
         db.execute("""
             INSERT INTO golfers (id, tournament_id, name, external_id, position, total_score,

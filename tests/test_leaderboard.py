@@ -227,6 +227,25 @@ class TestApplyCutModifier:
     def test_complete_status_treated_as_made_cut(self):
         assert app_module.apply_cut_modifier(3, 'complete', 1) == 1
 
+    def test_mc_status_treated_as_missed_cut(self):
+        # API may return 'MC' (Missed Cut) instead of 'cut'
+        assert app_module.apply_cut_modifier(7, 'MC', 1) == 2
+
+    def test_mdf_status_treated_as_missed_cut(self):
+        # 'MDF' (Made cut, Didn't Finish) — still penalize like a missed cut
+        assert app_module.apply_cut_modifier(7, 'MDF', 1) == 2
+
+    def test_cut_status_with_whitespace(self):
+        # API may pad status with whitespace
+        assert app_module.apply_cut_modifier(7, ' CUT ', 1) == 2
+
+    def test_uppercase_cut_status(self):
+        assert app_module.apply_cut_modifier(7, 'CUT', 1) == 2
+
+    def test_none_status_no_crash(self):
+        # None status should not raise; treated as made-cut
+        assert app_module.apply_cut_modifier(7, None, 1) == 1
+
 
 class TestCutLineModifier:
     """Integration tests: cut modifier through compute_leaderboard()."""
