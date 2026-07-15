@@ -5,7 +5,7 @@
 {% block title %}Make Your Picks — {{ tournament_name }}{% endblock %}
 
 {% block head_extra %}
-<script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js" data-turbo-track="reload"></script>
+<script src="/static/js/choices-11.1.0.min.js" data-turbo-track="reload"></script>
 <style>
     /* ─── Choices.js: full theme override ──────────────────────────────────────
        Strategy: target every Choices class at sufficient specificity so we don't
@@ -486,6 +486,24 @@
 {% block scripts %}
 <script>
 document.addEventListener('turbo:load', () => {
+    // ── Guard: Choices.js must be loaded ───────────────────────────────────────
+    // If the library script failed to load (blocked CDN in the past, a content
+    // blocker, Lockdown Mode, an offline load, etc.), the native <select>s remain
+    // and the enhanced UI is missing. Surface a clear, actionable banner instead
+    // of leaving the user with unstyled, hard-to-use native controls.
+    if (typeof Choices === 'undefined') {
+        const anchor = document.getElementById('picks-form') || document.querySelector('main') || document.body;
+        if (anchor && !document.getElementById('choices-load-error')) {
+            const warn = document.createElement('div');
+            warn.id = 'choices-load-error';
+            warn.setAttribute('role', 'alert');
+            warn.className = 'mb-4 rounded-lg border border-red-700 bg-red-900 px-4 py-3 text-sm text-red-300';
+            warn.textContent = 'The pick selector could not load. If you use a content blocker, private/Lockdown mode, or a VPN, try disabling it for this site and reload the page. You can still tap the boxes below to pick, but the search view is unavailable.';
+            anchor.prepend(warn);
+        }
+        return;
+    }
+
     // ── Choices.js init ────────────────────────────────────────────────────────
     const sharedConfig = {
         searchEnabled: true,
