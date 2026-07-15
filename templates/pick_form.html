@@ -506,13 +506,14 @@ document.addEventListener('turbo:load', () => {
 
     // ── Choices.js init ────────────────────────────────────────────────────────
     const sharedConfig = {
-        searchEnabled: true,
+        // Search is disabled on purpose: focusing the search input pops the iOS
+        // keyboard, which covers most of the dropdown and leaves only a couple of
+        // golfers visible to scroll. Users tap to select from the full list instead.
+        searchEnabled: false,
         placeholder: true,
-        noResultsText: 'No golfers found',
         itemSelectText: '',
         shouldSort: false,
         allowHTML: false,
-        searchPlaceholderValue: 'Search golfers...',
         classNames: {
             containerOuter: 'choices',
             containerInner: 'choices__inner',
