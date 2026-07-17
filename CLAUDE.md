@@ -81,6 +81,8 @@ Turso/libSQL via `libsql` (stable package, replaced `libsql_experimental`). The 
 
 Slash Golf API via RapidAPI (`live-golf-data.p.rapidapi.com`). Endpoints: `/schedule`, `/leaderboard` (key: `leaderboardRows`), `/tournament` (key: `players`). Some fields use MongoDB-style `{"$numberInt": "4"}` — handled by `_api_int()`. Refresh via admin panel or `POST /api/auto-refresh` (X-API-Key header auth, reuses GOLF_API_KEY).
 
+**⚠️ Temporary (2026 season):** The Slash Golf API was disabled by its provider mid-season. Data Golf is wired in **for The Open Championship only**, gated by `tournament_external_id == '100'` at the top of `refresh_golfers_from_api()` → `refresh_golfers_from_datagolf()` (`/preds/in-play?tour=pga`; names are "Last, First"; no cut-line field so it's derived). Needs `DG_API_KEY` (local `.env` + DigitalOcean). Remove the whole block next season. Design: `docs/superpowers/specs/2026-07-16-datagolf-open-hotfix-design.md`.
+
 Cron runs every 5 minutes (`*/5 * * * *`). Per-tournament `refresh_interval_minutes` (default 60) gates actual refreshes — endpoint checks `tournament_metadata.last_api_update` and returns `too_soon` if interval hasn't elapsed. `?force=1` bypasses both window and interval checks.
 
 ### DraftKings Salary Fetch
@@ -235,6 +237,12 @@ The app connects to **production Turso DB** even in local dev (same instance).
 - **Clean up test sessions** after tests to avoid DB clutter
 - **CSRF tokens** are Flask session-bound — use Playwright for flows involving CSRF forms, not `requests`
 - **Kill port 5000** between test runs: `lsof -ti:5000 | xargs -r kill -9`
+
+### Turso CLI & Data Recovery
+
+- CLI DB name is `flask-golf` (URL host is `flask-golf-cjt243`). Query prod directly: `turso db shell flask-golf "<SQL>"`.
+- `sqlite3` CLI is **not installed** — use `turso db shell` or Python's `libsql`/`sqlite3` module.
+- **No pick-edit history**: `/submit_picks` UPDATEs `entries` in place (stamps `updated_at`; edits blocked when `picks_locked=1`). No audit table, no pick emails, no pick logging. The **only** way to recover an overwritten lineup is Turso point-in-time restore: `turso db create tmp --from-db flask-golf --timestamp <RFC3339Z-before-change>`, read the row, then `turso db destroy tmp --yes`.
 
 ### CI
 
