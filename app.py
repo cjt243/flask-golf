@@ -1499,6 +1499,11 @@ def fetch_tournament_field(tournament_external_id, year=None):
 
 def refresh_golfers_from_api(tournament_id, tournament_external_id, year=None):
     """Refresh golfer data from Slash Golf API."""
+    # The Open Championship 2026: Slash Golf API disabled by provider mid-tournament.
+    # Temporary Data Golf source — remove this whole branch next season.
+    if tournament_external_id == '100':
+        return refresh_golfers_from_datagolf(tournament_id, tournament_external_id, year)
+
     if year is None:
         year = datetime.now().year
 
@@ -1579,6 +1584,186 @@ def refresh_golfers_from_api(tournament_id, tournament_external_id, year=None):
     """, [tournament_id, cut_line])
 
     db.commit()
+    return True
+
+
+# =============================================================================
+# Data Golf integration — TEMPORARY 2026 stopgap for The Open Championship.
+# The Slash Golf API was disabled by its provider mid-tournament. Data Golf is
+# wired in only for The Open (gated by external_id == '100' in
+# refresh_golfers_from_api). Remove this whole section next season.
+# =============================================================================
+
+DATAGOLF_BASE_URL = "https://feeds.datagolf.com"
+
+# Data Golf uses different name spellings/nicknames for a handful of players.
+# These 4 are non-picked golfers that don't normalize-match an existing row;
+# map the raw Data Golf name to the exact golfers.name already in the DB.
+DG_NAME_ALIASES = {
+    'Sloman, Tom': 'Thomas Sloman',
+    'Smyth, Trav': 'Travis Smyth',
+    'Grinberg, Lev': 'Liv Grinberg',
+    'Skogen, Baard': 'Bard Bjoernevikl Skogen',
+}
+
+
+def _datagolf_flip_name(name):
+    """Convert a Data Golf 'Last, First' name to 'First Last'."""
+    if ',' in name:
+        last, first = name.split(',', 1)
+        return f"{first.strip()} {last.strip()}"
+    return name.strip()
+
+
+def _format_golf_score(value):
+    """Format an integer golf score for display: 0->'E', -2->'-2', 3->'+3', None->'--'."""
+    if value is None:
+        return '--'
+    if value == 0:
+        return 'E'
+    return f"+{value}" if value > 0 else str(value)
+
+
+def fetch_datagolf_in_play():
+    """Fetch live in-play data from Data Golf's PGA feed. Returns a dict or None."""
+    api_key = os.getenv('DG_API_KEY')
+    if not api_key:
+        logger.error("DG_API_KEY not set — cannot fetch Data Golf in-play data")
+        return None
+    try:
+        resp = requests.get(
+            f"{DATAGOLF_BASE_URL}/preds/in-play",
+            params={'tour': 'pga', 'file_format': 'json', 'key': api_key},
+            timeout=15
+        )
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        logger.error(f"Error fetching Data Golf in-play data: {e}")
+        return None
+
+
+def refresh_golfers_from_datagolf(tournament_id, tournament_external_id, year=None):
+    """Refresh The Open Championship golfer scores from Data Golf.
+
+    Existing golfer rows are UPDATEd in place (matched by normalized name) —
+    never inserted — so pick-to-golfer matching and row identity are preserved.
+    Data Golf returns names as 'Last, First' and provides no numeric cut line;
+    both are handled here. Returns True on success, False on any failure (which
+    leaves last-good data untouched, same as the Slash Golf path).
+    """
+    data = fetch_datagolf_in_play()
+    if not isinstance(data, dict):
+        return False
+
+    info = data.get('info') or {}
+    event_name = (info.get('event_name') or '')
+    if 'open championship' not in event_name.lower():
+        logger.warning(
+            "Data Golf in-play event is '%s', not The Open — skipping refresh",
+            event_name
+        )
+        return False
+
+    players = data.get('data') or []
+    if not players:
+        logger.warning("Data Golf in-play returned no players — skipping refresh")
+        return False
+
+    db = get_db()
+
+    # Map normalized name -> existing DB golfer name so we UPDATE in place.
+    existing = db.execute(
+        "SELECT name FROM golfers WHERE tournament_id = ?", [tournament_id]
+    ).fetchall()
+    norm_to_db = {_normalize_golfer_name(r[0]): r[0] for r in existing}
+
+    made_cut_scores = []
+    has_cut = False
+    matched = 0
+    unmatched = []
+
+    for player in players:
+        raw_name = player.get('player_name', '')
+        if not raw_name:
+            continue
+
+        db_name = norm_to_db.get(_normalize_golfer_name(_datagolf_flip_name(raw_name)))
+        if db_name is None:
+            db_name = DG_NAME_ALIASES.get(raw_name)
+        if db_name is None:
+            unmatched.append(raw_name)
+            continue
+
+        pos = player.get('current_pos')
+        total = player.get('current_score')
+        today = player.get('today')
+        rnd = player.get('round')
+        thru = player.get('thru')
+
+        total = int(total) if isinstance(total, (int, float)) else None
+        today = int(today) if isinstance(today, (int, float)) else None
+        rnd = int(rnd) if isinstance(rnd, (int, float)) else None
+
+        pos_str = str(pos).upper() if pos is not None else ''
+        is_cut = pos_str in ('CUT', 'MC')
+        is_ranked = bool(pos_str) and (pos_str[0].isdigit() or pos_str.startswith('T'))
+
+        if is_cut:
+            status = 'cut'
+            has_cut = True
+        elif total is None:
+            status = 'not started'
+        else:
+            status = 'active'
+
+        # Cut line = worst total among players who made the cut (are still ranked).
+        if is_ranked and total is not None:
+            made_cut_scores.append(total)
+
+        db.execute("""
+            UPDATE golfers SET
+                position = ?,
+                total_score = ?,
+                score_display = ?,
+                current_round_score = ?,
+                round_number = ?,
+                thru = ?,
+                status = ?,
+                last_updated = datetime('now')
+            WHERE tournament_id = ? AND name = ?
+        """, [
+            str(pos) if pos is not None else '',
+            total,
+            _format_golf_score(total),
+            _format_golf_score(today),
+            rnd,
+            str(thru) if thru is not None else '',
+            status,
+            tournament_id,
+            db_name,
+        ])
+        matched += 1
+
+    # Data Golf exposes no cut-line score; derive it only once the cut is in.
+    cut_line = max(made_cut_scores) if (has_cut and made_cut_scores) else None
+
+    db.execute("""
+        INSERT INTO tournament_metadata (tournament_id, cut_line, last_api_update, api_status)
+        VALUES (?, ?, datetime('now'), 'success')
+        ON CONFLICT(tournament_id) DO UPDATE SET
+            cut_line = excluded.cut_line,
+            last_api_update = datetime('now'),
+            api_status = 'success'
+    """, [tournament_id, cut_line])
+
+    db.commit()
+
+    if unmatched:
+        logger.warning("Data Golf refresh: %d unmatched players skipped: %s",
+                       len(unmatched), ', '.join(unmatched))
+    logger.info("Data Golf refresh: updated %d golfers for The Open (cut_line=%s)",
+                matched, cut_line)
     return True
 
 
