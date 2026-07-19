@@ -81,8 +81,6 @@ Turso/libSQL via `libsql` (stable package, replaced `libsql_experimental`). The 
 
 Slash Golf API via RapidAPI (`live-golf-data.p.rapidapi.com`). Endpoints: `/schedule`, `/leaderboard` (key: `leaderboardRows`), `/tournament` (key: `players`). Some fields use MongoDB-style `{"$numberInt": "4"}` — handled by `_api_int()`. Refresh via admin panel or `POST /api/auto-refresh` (X-API-Key header auth, reuses GOLF_API_KEY).
 
-**⚠️ Temporary (2026 season):** The Slash Golf API was disabled by its provider mid-season. Data Golf is wired in **for The Open Championship only**, gated by `tournament_external_id == '100'` at the top of `refresh_golfers_from_api()` → `refresh_golfers_from_datagolf()` (`/preds/in-play?tour=pga`; names are "Last, First"; no cut-line field so it's derived). Needs `DG_API_KEY` (local `.env` + DigitalOcean). Remove the whole block next season. Design: `docs/superpowers/specs/2026-07-16-datagolf-open-hotfix-design.md`.
-
 Cron runs every 5 minutes (`*/5 * * * *`). Per-tournament `refresh_interval_minutes` (default 60) gates actual refreshes — endpoint checks `tournament_metadata.last_api_update` and returns `too_soon` if interval hasn't elapsed. `?force=1` bypasses both window and interval checks.
 
 ### DraftKings Salary Fetch
